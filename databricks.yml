@@ -1,0 +1,143 @@
+# Declarative Automation Bundle (formerly Databricks Asset Bundle / DAB) for the MLOps Workshop.
+# Run `databricks bundle schema` to see the full settings schema.
+# Docs: Declarative Automation Bundles https://learn.microsoft.com/azure/databricks/dev-tools/bundles/
+#       Settings & targets https://learn.microsoft.com/azure/databricks/dev-tools/bundles/settings
+bundle:
+  name: mlops_workshop
+
+variables:
+  experiment_name:
+    description: MLflow experiment for model training runs (per-user path).
+    default: /Users/${workspace.current_user.userName}/${bundle.target}-mlops-workshop-fraud
+  model_name:
+    description: Unity Catalog registered model name (in the per-user workspace schema).
+    default: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_detection
+  catalog_name:
+    description: Unity Catalog catalog for the environment (dev/staging/prod).
+    default: dev
+  gold_schema:
+    description: Shared, read-only gold schema holding the source consumption tables.
+    default: fraud_gold
+  auto_approve:
+    description: >-
+      Whether the deployment job's Approval_Check auto-approves (dev) or requires a human
+      UC-tag approval (staging/prod). Overridden to "false" on the non-dev targets.
+    default: "true"
+  code_root:
+    description: >-
+      Which notebook tree the bundle deploys: `src` (generated notebooks with TODO
+      gaps) or `solution` (complete, runnable). The default `personal` target deploys `src`
+      so attendees get the gaps; the clean `dev`/`staging`/`prod` targets override to
+      `solution` so instructor and CI runs execute the complete notebooks. Every job's
+      notebook_path is `../${var.code_root}/...`, so the two trees must mirror each other
+      (the generator guarantees this).
+    default: src
+
+include:
+  # All DAB resources (jobs, models, experiments, monitors) live in ./resources.
+  # Instructor-only data preparation (landing -> bronze -> silver).
+  - ./resources/data-ingestion-workflow.yml
+  - ./resources/schemas-resource.yml
+  - ./resources/ml-artifacts-resource.yml
+  - ./resources/feature-engineering-workflow.yml
+  - ./resources/model-training-workflow.yml
+  - ./resources/batch-inference-workflow.yml
+  # MLflow 3 deployment job: auto-triggered on new model versions (evaluate -> approve ->
+  # deploy). Connected to each user's model at run time by the training notebook.
+  - ./resources/deployment-job-workflow.yml
+  # Always-on: unpacks the serving AI Gateway logs into the online inference table.
+  - ./resources/serving-log-processing-workflow.yml
+  # Monitoring & Retraining. Enable this only once the inference tables exist, because a
+  # quality_monitor needs its table to be there at deploy time (same catch mlops-stacks
+  # ran into). The always-on jobs above create both tables:
+  #   1) databricks bundle run batch_inference_job         # creates fraud_predictions
+  #   2) databricks bundle run serving_log_processing_job  # creates fraud_serving_inference
+  # then uncomment the include below and redeploy.
+  # - ./resources/monitoring-resource.yml
+
+# Shared medallion infrastructure (landing/bronze/silver/gold schemas + the raw_data
+# landing volume). Declared ONLY on the clean (non-development) targets so that:
+#   * a `bundle deploy -t personal` (development mode) NEVER creates them. Attendees read
+#     the shared, instructor-seeded schemas and write only to their own
+#     `dev_<user>_fraud` (user_workspace). No empty per-user copies.
+#   * a clean deploy (`-t dev` / `-t staging` / `-t prod`, no name-prefixing) provisions
+#     them literally as the shared `fraud_landing` / `fraud_bronze` / `fraud_silver` /
+#     `fraud_gold` + volume in that target's catalog.
+# `fraud_gold` is the shared source that everyone reads; the per-user `user_workspace`
+# schema is separately named `fraud` (ML outputs), so there is no collision on the clean
+# targets.
+# These resources only create the empty schemas/volume; the actual data load
+# (upload + landing->bronze->silver) still runs via `data_ingestion_job`.
+
+# Deployment targets.
+#   * personal: DEFAULT, mode: development. Each attendee gets a personal, name-prefixed
+#     [dev <user>] copy in the `dev` catalog; reads the shared schemas, writes only to
+#     `dev_<user>_fraud`. Deploys `code_root: src` (default), the generated notebooks
+#     with TODO gaps, so attendees fill them in.
+#   * dev / staging / prod: clean shared environments (no name-prefixing) that CI/CD
+#     deploys as a service principal and that own the shared medallion schemas. Deploy
+#     `code_root: solution` (the complete notebooks) so instructor and CI runs are green.
+targets:
+  personal:
+    mode: development
+    default: true
+    variables:
+      catalog_name: dev
+    # workspace:
+    #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
+
+  dev:
+    variables:
+      catalog_name: dev
+      code_root: solution
+    # Anchor defined here; staging/prod reuse the identical shared-infra block.
+    resources: &shared_infra
+      schemas:
+        fraud_landing:
+          catalog_name: ${var.catalog_name}
+          name: fraud_landing
+          comment: Landing zone - raw source files stored in the raw_data volume.
+        fraud_bronze:
+          catalog_name: ${var.catalog_name}
+          name: fraud_bronze
+          comment: Bronze layer - raw ingested fraud data.
+        fraud_silver:
+          catalog_name: ${var.catalog_name}
+          name: fraud_silver
+          comment: Silver layer - cleaned, typed and joined fraud data.
+        fraud_gold:
+          catalog_name: ${var.catalog_name}
+          name: fraud_gold
+          comment: Gold layer - shared curated source read by all users (transactions_enriched).
+      volumes:
+        raw_data:
+          catalog_name: ${var.catalog_name}
+          schema_name: fraud_landing
+          name: raw_data
+          comment: Managed volume holding the raw source files (one folder per dataset).
+    # workspace:
+    #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
+
+  staging:
+    variables:
+      catalog_name: staging
+      auto_approve: "false"
+      code_root: solution
+    resources: *shared_infra
+    # workspace:
+    #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
+
+  prod:
+    mode: production
+    variables:
+      catalog_name: prod
+      auto_approve: "false"
+      code_root: solution
+    resources: *shared_infra
+    workspace:
+      # host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
+      # Production mode requires a fixed, non-user-scoped root_path so exactly one copy is
+      # deployed. Use a dedicated (non-/Shared) folder: /Shared is writable by ALL workspace
+      # users, so anyone could tamper with prod code. In a real prod you would deploy as a
+      # service principal and restrict write ACLs on this folder to that identity.
+      root_path: /Workspace/mlops-workshop/.bundle/${bundle.name}/${bundle.target}

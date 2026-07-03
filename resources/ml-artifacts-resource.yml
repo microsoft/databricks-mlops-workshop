@@ -1,0 +1,12 @@
+# ML artifacts: the MLflow experiment for the fraud project.
+# Covers the "Model Management & Governance" session.
+#
+# The registered model is created at run time by the training notebook
+# (fe.log_model with registered_model_name) into each user's personal schema, so it
+# is intentionally NOT declared here as a resource (the personal schema does not exist
+# at deploy time).
+# Docs: MLflow experiments https://learn.microsoft.com/azure/databricks/mlflow/experiments
+resources:
+  experiments:
+    experiment:
+      name: ${var.experiment_name}

@@ -1,0 +1,46 @@
+name: CI
+
+# Run on every pull request and on merges (pushes) to the default branch.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # TEMP: disabled until .pre-commit-config.yaml can be re-added.
+  # The Microsoft org push-protection ruleset blocks committing
+  # .pre-commit-config.yaml, so this job (and the config file) are
+  # temporarily removed. Restore both together.
+  # pre-commit:
+  #   name: pre-commit (lint + format)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.10"
+  #     - uses: pre-commit/action@v3.0.1
+
+  src-in-sync:
+    name: generated src tree in sync with solution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Regenerate src/ from the solution source
+        run: python scripts/generate_src.py
+      - name: Fail if src/ differs from the generated output
+        run: |
+          if ! git diff --exit-code -- src; then
+            echo "::error::src/ is out of sync with solution/. Run 'python scripts/generate_src.py' and commit the result."
+            exit 1
+          fi

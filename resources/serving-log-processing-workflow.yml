@@ -1,0 +1,27 @@
+# Serving-log processing workflow (always on).
+#
+# Unpacks the serving endpoint's AI Gateway inference table (raw request/response JSON)
+# into an InferenceLog-shaped table, `fraud_serving_inference`, that the online monitor
+# profiles. This job lives in its own always-included file (NOT in monitoring-resource.yml)
+# so it can create the online inference table *before* the monitors are enabled; see the
+# chicken-and-egg note in resources/monitoring-resource.yml.
+# Docs: AI Gateway inference tables https://learn.microsoft.com/azure/databricks/ai-gateway/inference-tables-serving-endpoints
+resources:
+  jobs:
+    serving_log_processing_job:
+      name: ${bundle.target}-mlops-workshop-serving-log-processing
+      tasks:
+        - task_key: process_serving_logs
+          notebook_task:
+            notebook_path: ../${var.code_root}/monitoring/notebooks/process_serving_logs.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              gold_schema: ${var.gold_schema}
+              user_schema: ${resources.schemas.user_workspace.name}
+      # In production you'd run this on a schedule so the online inference table stays
+      # fresh ahead of the monitor refresh. It's commented out for the workshop so nothing
+      # auto-runs per attendee; the instructor triggers it on demand with
+      # `databricks bundle run serving_log_processing_job`. Uncomment to productionize.
+      # schedule:
+      #   quartz_cron_expression: 0 30 7 * * ? # 07:30 daily, before the monitors refresh at 08:00
+      #   timezone_id: UTC

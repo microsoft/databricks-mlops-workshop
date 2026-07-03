@@ -1,0 +1,56 @@
+# MLflow 3 deployment job (Public Preview).
+#
+# A deployment job is a normal Lakeflow Job that is *connected to a UC registered model*
+# (via deployment_job_id, set at run time by the training notebook) and AUTO-TRIGGERS on
+# every new model version. Databricks injects the job-level parameters `model_name` and
+# `model_version` on each trigger. The three tasks implement the governed release:
+#
+#   Evaluation   -> score the new version, record metrics on the model-version page, gate.
+#   Approval_Check -> auto-approve in dev (auto_approve=true); require a human tag in
+#                     staging/prod (auto_approve=false, set via target override).
+#   Deployment   -> promote the version to @champion and serve it on the endpoint.
+#
+# A few things this job needs to work: exactly two job-level params (model_name and
+# model_version), max_concurrent_runs 1 so two versions can't deploy at once, and an
+# approval task whose key starts with "approval" so the UI Approve button hooks up to it.
+# There's no schedule; a new model version is what kicks it off.
+# Docs: MLflow 3 deployment jobs https://learn.microsoft.com/azure/databricks/mlflow/deployment-job
+resources:
+  jobs:
+    fraud_deployment_job:
+      name: ${bundle.target}-mlops-workshop-deployment-job
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+      parameters:
+        - name: model_name
+          default: ${var.model_name}
+        - name: model_version
+          default: ""
+      tasks:
+        - task_key: Evaluation
+          max_retries: 0
+          notebook_task:
+            notebook_path: ../${var.code_root}/deployment/model_deployment/notebooks/evaluation.py
+            base_parameters:
+              metric: roc_auc
+              baseline: "0.65"
+
+        - task_key: Approval_Check
+          depends_on:
+            - task_key: Evaluation
+          max_retries: 0
+          notebook_task:
+            notebook_path: ../${var.code_root}/deployment/model_deployment/notebooks/approval.py
+            base_parameters:
+              # The tag key is the task name; the UI Approve button sets it to "Approved".
+              approval_tag_name: "{{task.name}}"
+              # dev auto-approves; staging/prod override this to "false" (human approval).
+              auto_approve: ${var.auto_approve}
+
+        - task_key: Deployment
+          depends_on:
+            - task_key: Approval_Check
+          max_retries: 0
+          notebook_task:
+            notebook_path: ../${var.code_root}/deployment/model_deployment/notebooks/deployment.py

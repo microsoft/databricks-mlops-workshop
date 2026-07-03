@@ -1,0 +1,8 @@
+# Normalise line endings: store text as LF in git, check out LF everywhere.
+# Keeps Databricks notebooks, YAML and Python consistent across Windows/macOS/Linux
+# and stops the pre-commit mixed-line-ending hook from churning on every commit.
+* text=auto eol=lf
+
+# Binary / data files git should not touch.
+*.csv binary
+*.json binary

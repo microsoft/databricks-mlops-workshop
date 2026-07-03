@@ -1,0 +1,92 @@
+# Monitoring & Retraining workflow.
+#
+# We monitor every inference path and start retraining on a schedule before layering on a
+# metric-triggered path. So we profile BOTH prediction distributions and wire a triggered
+# retraining job:
+#   * batch_monitor  -> the weekly-report table (has labels -> drift AND quality)
+#   * online_monitor -> the unpacked serving table (labels lag -> drift-led)
+#   * retraining_job -> checks the batch quality trend and triggers model_training_job
+#
+# The chicken-and-egg catch: a `quality_monitor` needs its table to already exist at deploy
+# time, and there's no way to order a monitor after the job that creates its table. We solve
+# it the way the mlops-stacks project does: keep this file's include commented in
+# databricks.yml until the tables exist. One-time sequence for the instructor:
+#   1. Deploy with this include commented (the always-on jobs below create the tables):
+#        databricks bundle run batch_inference_job         # -> creates fraud_predictions
+#        databricks bundle run serving_log_processing_job  # -> creates fraud_serving_inference
+#   2. Uncomment the `monitoring-resource.yml` include in databricks.yml, then redeploy.
+#   3. The monitors attach and refresh on their schedule (or refresh from monitoring.py).
+# The table-producing jobs live in their own always-on files (batch-inference-workflow.yml,
+# serving-log-processing-workflow.yml) so they are never blocked by the monitors.
+# Docs: Data profiling / Lakehouse Monitoring https://learn.microsoft.com/azure/databricks/data-governance/unity-catalog/data-quality-monitoring/data-profiling/
+resources:
+  quality_monitors:
+    # Batch path: the weekly fraud report. Labels are joined, so this monitor tracks
+    # model quality (accuracy/precision/recall/f1) as well as drift.
+    batch_monitor:
+      table_name: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_predictions
+      output_schema_name: ${var.catalog_name}.${resources.schemas.user_workspace.name}
+      assets_dir: /Workspace/Users/${workspace.current_user.userName}/lakehouse_monitoring
+      inference_log:
+        granularities: [1 day]
+        model_id_col: model_version
+        prediction_col: prediction
+        label_col: is_fraud
+        problem_type: PROBLEM_TYPE_CLASSIFICATION
+        timestamp_col: scored_at
+      schedule:
+        quartz_cron_expression: 0 0 8 * * ? # every day at 08:00
+        timezone_id: UTC
+
+    # Online path: ad-hoc checks captured by the serving endpoint's AI Gateway inference
+    # table, unpacked into the same shape. Labels lag, so this leads with drift.
+    online_monitor:
+      table_name: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_serving_inference
+      output_schema_name: ${var.catalog_name}.${resources.schemas.user_workspace.name}
+      assets_dir: /Workspace/Users/${workspace.current_user.userName}/lakehouse_monitoring
+      inference_log:
+        granularities: [1 day]
+        model_id_col: model_version
+        prediction_col: prediction
+        label_col: is_fraud
+        problem_type: PROBLEM_TYPE_CLASSIFICATION
+        timestamp_col: scored_at
+      schedule:
+        quartz_cron_expression: 0 0 8 * * ? # every day at 08:00
+        timezone_id: UTC
+
+  jobs:
+    # Triggered retraining: check the batch quality trend, and only if it has degraded
+    # across recent windows, run the training job (which retrains on the latest labelled
+    # data -> the actual remedy for drift once fresh labels have landed).
+    retraining_job:
+      name: ${bundle.target}-mlops-workshop-retraining
+      tasks:
+        - task_key: monitored_metric_violation_check
+          notebook_task:
+            notebook_path: ../${var.code_root}/monitoring/notebooks/metric_violation_check.py
+            base_parameters:
+              table_name_under_monitor: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_predictions
+              metric_to_monitor: f1_score.macro
+              metric_violation_threshold: "0.20"
+              num_evaluation_windows: "5"
+              num_violation_windows: "2"
+
+        - task_key: is_metric_violated
+          depends_on:
+            - task_key: monitored_metric_violation_check
+          condition_task:
+            op: EQUAL_TO
+            left: "{{tasks.monitored_metric_violation_check.values.is_metric_violated}}"
+            right: "true"
+
+        - task_key: trigger_retraining
+          depends_on:
+            - task_key: is_metric_violated
+              outcome: "true"
+          run_job_task:
+            job_id: ${resources.jobs.model_training_job.id}
+
+      schedule:
+        quartz_cron_expression: 0 0 9 * * ? # daily at 09:00, after monitors refresh
+        timezone_id: UTC

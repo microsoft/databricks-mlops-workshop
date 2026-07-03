@@ -1,0 +1,141 @@
+name: CD (deploy Declarative Automation Bundle)
+
+# Continuous deployment for the Declarative Automation Bundle (DAB).
+#
+# Promotion model (multi-env with a release branch):
+#
+#   feature/*  --PR-->  dev             (CI only: validate + tests, see ci.yml)
+#                        |
+#                        |  merge to dev
+#                        v
+#                      DEV               (auto-deploy on every push to dev)
+#                        |
+#                        |  merge dev --> main
+#                        v
+#                     STAGING            (auto-deploy on every push to main)
+#                        |
+#                        |  cut a release: push to release/** OR tag vX.Y.Z
+#                        v
+#                      PROD              (deploy gated by a manual approval)
+#
+# What promotes is CODE, not the model: the same reviewed bundle is deployed to each
+# environment and trains/serves on that environment's own catalog + data.
+#
+# Auth: dev, staging and prod each deploy as a Databricks SERVICE PRINCIPAL, never a
+# personal account, using OAuth WORKLOAD IDENTITY FEDERATION (OIDC). GitHub mints a
+# short-lived OIDC token per run and Databricks exchanges it for an access token, so
+# there is NO long-lived secret to store or rotate (Databricks' most secure option).
+#
+# One-time setup per service principal (dev / staging / prod):
+#   1. Add the SP to the Databricks account.
+#   2. Give it a GitHub Actions federation policy whose subject matches this repo and the
+#      GitHub Environment the job runs in, e.g.:
+#        repo:<org>/<repo>:environment:dev
+#        repo:<org>/<repo>:environment:staging
+#        repo:<org>/<repo>:environment:production
+#      See: Enable workload identity federation for GitHub Actions.
+#
+# Required per-environment config (Settings -> Environments -> dev / staging / production):
+#   vars.DATABRICKS_HOST          https://adb-xxxx.<n>.azuredatabricks.net
+#   secrets.DATABRICKS_CLIENT_ID  service-principal application (client) id  (not a secret,
+#                                 but kept per-environment for convenience)
+# The job sets DATABRICKS_AUTH_TYPE=github-oidc and the CLI does the token exchange.
+# The workflow needs `id-token: write` so GitHub can issue the OIDC token.
+
+on:
+  push:
+    branches:
+      - dev                 # -> dev
+      - main                # -> staging
+      - "release/**"        # -> prod (long-lived release branch)
+    tags: ["v*.*.*"]        # -> prod (release tag)
+  # Manual runs can target any environment.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Bundle target to deploy
+        type: choice
+        options: [dev, staging, prod]
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write        # required for OIDC workload identity federation
+
+concurrency:
+  # Never run two deploys to the same environment at once.
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # DEV: every merge to the dev branch
+  # ---------------------------------------------------------------------------
+  deploy-dev:
+    name: Deploy to dev
+    if: >-
+      github.ref == 'refs/heads/dev' ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'dev')
+    runs-on: ubuntu-latest
+    environment: dev              # GitHub Environment holding the dev SP config + federation policy
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@v0.9.0
+      - name: Validate bundle
+        run: databricks bundle validate -t dev
+      - name: Deploy bundle
+        run: databricks bundle deploy -t dev
+
+  # ---------------------------------------------------------------------------
+  # STAGING: every merge to main
+  # ---------------------------------------------------------------------------
+  deploy-staging:
+    name: Deploy to staging
+    if: >-
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
+    runs-on: ubuntu-latest
+    environment: staging          # GitHub Environment holding the staging SP config + federation policy
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@v0.9.0
+      - name: Validate bundle
+        run: databricks bundle validate -t staging
+      - name: Deploy bundle
+        run: databricks bundle deploy -t staging
+      # Optional smoke test: run the training job and fail the deploy if it errors.
+      # - name: Smoke test (train)
+      #   run: databricks bundle run model_training_job -t staging
+
+  # ---------------------------------------------------------------------------
+  # PROD: cut a release (tag vX.Y.Z or release/** branch); requires approval
+  # ---------------------------------------------------------------------------
+  deploy-prod:
+    name: Deploy to prod
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      startsWith(github.ref, 'refs/heads/release/') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'prod')
+    runs-on: ubuntu-latest
+    # The 'production' Environment should have a required-reviewers protection rule, so this
+    # job pauses for a human to approve before it deploys.
+    environment: production
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@v0.9.0
+      - name: Validate bundle
+        run: databricks bundle validate -t prod
+      - name: Deploy bundle
+        run: databricks bundle deploy -t prod
