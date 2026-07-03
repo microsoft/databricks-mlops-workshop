@@ -1,0 +1,41 @@
+# Data ingestion workflow: land raw files into Bronze, then build Silver tables.
+# INSTRUCTOR-ONLY: run once before the workshop to prepare the data. Not a lab exercise.
+# Reads from the landing volume dev.fraud_landing.raw_data and writes the
+# dev.fraud_bronze and dev.fraud_silver tables.
+# Docs: Medallion architecture https://learn.microsoft.com/azure/databricks/lakehouse/medallion
+resources:
+  jobs:
+    data_ingestion_job:
+      name: ${bundle.target}-mlops-workshop-data-ingestion
+      tasks:
+        - task_key: landing_to_bronze
+          notebook_task:
+            notebook_path: ../${var.code_root}/data_ingestion/notebooks/load_landing_to_bronze.py
+            base_parameters:
+              catalog: ${var.catalog_name}
+              bronze_schema: fraud_bronze
+              landing_catalog: ${var.catalog_name}
+              landing_schema: fraud_landing
+              landing_volume: raw_data
+        - task_key: bronze_to_silver
+          depends_on:
+            - task_key: landing_to_bronze
+          notebook_task:
+            notebook_path: ../${var.code_root}/data_ingestion/notebooks/load_bronze_to_silver.py
+            base_parameters:
+              catalog: ${var.catalog_name}
+              bronze_schema: fraud_bronze
+              silver_schema: fraud_silver
+              gold_schema: fraud_gold
+      # In production the medallion pipeline runs on a schedule (or a file-arrival trigger)
+      # so bronze/silver/gold stay fresh as new transactions land. It's commented out for
+      # the workshop, where the shared data is seeded once against the clean `dev` target
+      # (`databricks bundle run data_ingestion_job -t dev`) before attendees arrive.
+      # Uncomment to productionize as a recurring data engineering job.
+      # schedule:
+      #   quartz_cron_expression: 0 0 6 * * ? # 06:00 daily, before feature engineering
+      #   timezone_id: UTC
+      # A file-arrival trigger is often a better fit than a fixed cron for ingestion:
+      # trigger:
+      #   file_arrival:
+      #     url: /Volumes/${var.catalog_name}/fraud_landing/raw_data/

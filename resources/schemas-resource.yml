@@ -1,0 +1,15 @@
+# Per-user ML workspace schema. Declared with a BASE name (`fraud`); in development
+# mode the bundle prefixes it to `dev_<user>_fraud`, giving each user their own schema
+# for the ML artifacts they produce (feature tables, model, predictions, monitoring).
+# In production mode (no prefix) it resolves to the shared `fraud`. Reads always come
+# from the shared medallion schemas (fraud_bronze / fraud_silver / fraud_gold). Jobs
+# reference ${resources.schemas.user_workspace.name} so notebooks write to exactly this
+# schema. The layer ("gold") is intentionally NOT in the name: this schema holds ML
+# outputs (model, predictions, monitoring), not a mirror of the shared gold layer.
+# Docs: Bundle deployment modes (dev prefixing) https://learn.microsoft.com/azure/databricks/dev-tools/bundles/deployment-modes
+resources:
+  schemas:
+    user_workspace:
+      catalog_name: ${var.catalog_name}
+      name: fraud
+      comment: Per-user ML outputs (feature tables, model, predictions, monitoring). Shared in prod.

@@ -1,0 +1,35 @@
+# Ruff configuration for the Databricks MLOps workshop.
+#
+# Scope:
+#   * solution/  complete notebooks + helper modules (source of truth)
+#   * scripts/   repo tooling (the src generator)
+#
+# The src/ tree is a GENERATED artifact (produced by scripts/generate_src.py) and is
+# therefore excluded here — it is validated separately by the "src in sync" CI check,
+# not linted/formatted.
+
+line-length = 100
+target-version = "py310"
+# Honour `extend-exclude` even when pre-commit passes file paths explicitly.
+force-exclude = true
+extend-exclude = ["src", ".tmp"]
+
+# Databricks injects these into every notebook at runtime; they are not undefined.
+builtins = [
+    "spark",
+    "dbutils",
+    "display",
+    "displayHTML",
+    "sqlContext",
+    "sc",
+    "getArgument",
+    "table",
+]
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[lint.per-file-ignores]
+# Databricks notebooks legitimately import inside cells (after %md markdown cells) and
+# carry long `# MAGIC %md` / SQL lines that must stay on one line.
+"solution/**/notebooks/*.py" = ["E402", "E501"]

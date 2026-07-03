@@ -1,0 +1,27 @@
+# Model training workflow: train -> register in Unity Catalog (which auto-triggers the
+# connected deployment job to evaluate -> approve -> deploy the new version).
+# Covers "Model Development" (training/tracking) and feeds "Governance" & "Promotion".
+# Docs: Manage model lifecycle in Unity Catalog https://learn.microsoft.com/azure/databricks/machine-learning/manage-model-lifecycle/
+resources:
+  jobs:
+    model_training_job:
+      name: ${bundle.target}-mlops-workshop-training
+      tasks:
+        - task_key: train
+          notebook_task:
+            notebook_path: ../${var.code_root}/training/notebooks/training.py
+            base_parameters:
+              # Use the DAB-managed experiment resource name (dev mode prefixes it with
+              # "[dev <user>]"). Referencing ${var.experiment_name} here would pass the
+              # un-prefixed name, so the notebook would log to a *second* experiment while
+              # `bundle deploy` created the prefixed one empty. Pointing at the resource
+              # keeps a single experiment that both the deploy and the runs share.
+              experiment_name: ${resources.experiments.experiment.name}
+              model_name: ${var.model_name}
+              catalog_name: ${var.catalog_name}
+              gold_schema: ${var.gold_schema}
+              user_schema: ${resources.schemas.user_workspace.name}
+              # Connect this model to its deployment job so registering a new version
+              # auto-triggers the governed evaluate -> approve -> deploy pipeline. The
+              # validation + serving that used to be separate tasks now live in that job.
+              deployment_job_id: ${resources.jobs.fraud_deployment_job.id}
