@@ -43,12 +43,15 @@ name: CD (deploy Declarative Automation Bundle)
 # The workflow needs `id-token: write` so GitHub can issue the OIDC token.
 
 on:
-  push:
-    branches:
-      - dev                 # -> dev
-      - main                # -> staging
-      - "release/**"        # -> prod (long-lived release branch)
-    tags: ["v*.*.*"]        # -> prod (release tag)
+  # TEMP: automatic deploys are disabled. This repo is a demo, so pushing to
+  # dev/main/release or tagging must NOT trigger a real bundle deployment.
+  # Re-enable by uncommenting the push/tags triggers below.
+  # push:
+  #   branches:
+  #     - dev                 # -> dev
+  #     - main                # -> staging
+  #     - "release/**"        # -> prod (long-lived release branch)
+  #   tags: ["v*.*.*"]        # -> prod (release tag)
   # Manual runs can target any environment.
   workflow_dispatch:
     inputs:
