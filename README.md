@@ -269,19 +269,20 @@ environment's data.
 ### Branching model (multi-env with a release branch)
 
 ```mermaid
+%%{init: {'gitGraph': {'mainBranchName': 'dev'}}}%%
 gitGraph
     commit id: "dev"
     branch feature/xyz
     commit id: "work"
     checkout dev
     merge feature/xyz tag: "PR: CI validate + src-sync"
-    commit id: "→ deploy DEV" type: HIGHLIGHT
+    commit id: "deploy DEV" type: HIGHLIGHT
     branch main
-    commit id: "promote dev→main"
-    commit id: "→ deploy STAGING" type: HIGHLIGHT
+    commit id: "promote dev to main"
+    commit id: "deploy STAGING" type: HIGHLIGHT
     branch release/1.0
     commit id: "cut release"
-    commit id: "→ deploy PROD (approval)" type: HIGHLIGHT
+    commit id: "deploy PROD (approval)" type: HIGHLIGHT
 ```
 
 | Stage | Trigger | Target | Auth | Gate |
