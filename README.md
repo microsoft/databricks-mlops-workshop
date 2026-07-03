@@ -77,10 +77,9 @@ tables, registered model, batch predictions and monitoring metrics) go to their 
 schema. MLflow **experiments** are workspace objects (a `/Users/...` path), not a Unity
 Catalog schema.
 
-> **Note: the `dev` catalog itself is not created by the bundle.** This account has
-> Databricks **Default Storage** enabled, and a Default Storage catalog can currently only
-> be created via the Catalog Explorer UI (**Catalog → Create catalog → Default storage**).
-> Create the catalog once, then deploy the bundle to provision the schemas and volume.
+> **Note: the `dev` catalog itself is not created by the bundle.** Create it once in the
+> Catalog Explorer UI (**Catalog → Create catalog**), then deploy the bundle to provision
+> the schemas and volume.
 
 ### Load the data
 
@@ -574,23 +573,6 @@ instructor seeds the shared data once before the workshop).
 Run once before the workshop via the DAB job `resources/data-ingestion-workflow.yml`. Both notebooks
 are parameterised via `dbutils.widgets`, so catalog/schema/volume can be overridden at runtime.
 Attendees start from the **silver** table.
-
----
-
-## Databricks Environment
-
-| Item | Value |
-|---|---|
-| Catalog | `dev` |
-| Landing | schema `fraud_landing`, volume `raw_data` (one folder per dataset) |
-| Bronze / Silver / Gold | schemas `fraud_bronze`, `fraud_silver`, `fraud_gold` (tables unprefixed; `transactions_enriched` is a gold consumption table) |
-| ML artifacts | per-user schema `dev_<you>_fraud` (feature tables, registered model, predictions); experiments live at `/Users/<you>/...` |
-| Compute | Shared classic clusters (LTS ML Runtime) |
-| Model Serving | Available |
-
-Unity Catalog objects (the medallion schemas and landing volume) are declared as bundle
-resources and created with `databricks bundle deploy -t dev`. The catalog itself is created
-once in the Catalog Explorer UI (Default Storage).
 
 ---
 
