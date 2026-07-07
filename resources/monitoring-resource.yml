@@ -118,23 +118,3 @@ resources:
       schedule:
         quartz_cron_expression: 0 0 9 * * ? # daily at 09:00, after monitors refresh
         timezone_id: UTC
-
-    # Demo helper (manual): append a deliberately drifted, today-stamped batch to the
-    # attendee's own fraud_predictions and refresh their batch monitor, so feature drift is
-    # visible inside the workshop instead of after days of real traffic. No schedule; run it
-    # on demand with `databricks bundle run seed_drift_job` (or open the notebook and run it).
-    seed_drift_job:
-      name: ${bundle.target}-mlops-workshop-seed-drift
-      tasks:
-        - task_key: seed_feature_drift
-          notebook_task:
-            notebook_path: ../${var.code_root}/monitoring/notebooks/seed_drift.py
-            base_parameters:
-              catalog_name: ${var.catalog_name}
-              gold_schema: ${var.gold_schema}
-              user_schema: ${resources.schemas.user_workspace.name}
-              model_name: ${var.model_name}
-              model_alias: champion
-              amount_multiplier: "6.0"
-              num_rows: "5000"
-              refresh_monitor: "true"
