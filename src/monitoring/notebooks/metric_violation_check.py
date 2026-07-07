@@ -4,6 +4,11 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
+# MAGIC **What this notebook is:** an automated job task, not a lab you open. It runs headless
+# MAGIC inside the scheduled `retraining_job` (nobody watching) and produces a machine-readable
+# MAGIC true/false. Contrast `monitoring.py`, which is the human-facing dashboard that only
+# MAGIC *displays* these same metrics for a person to read.
+# MAGIC
 # MAGIC One task in the retraining job. It reads the monitor's
 # MAGIC `..._profile_metrics` table to decide whether model quality has degraded across
 # MAGIC recent windows, and publishes the boolean answer as a job task value

@@ -4,6 +4,11 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
+# MAGIC **What this notebook is:** an automated job task (like `metric_violation_check.py`), not
+# MAGIC a lab you open. It runs headless inside the scheduled `retraining_job` and emits a
+# MAGIC true/false. Contrast `monitoring.py`, which is the human-facing dashboard that just
+# MAGIC *displays* the same drift numbers for a person to read.
+# MAGIC
 # MAGIC A sibling of `metric_violation_check.py`, but for **feature (data) drift** instead of
 # MAGIC model quality. It reads the monitor's `..._drift_metrics` table and decides whether the
 # MAGIC input distribution of one or more features has shifted enough, for long enough, to act

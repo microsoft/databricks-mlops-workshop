@@ -4,6 +4,14 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
+# MAGIC **What this notebook is:** the human-facing dashboard. You open and run it
+# MAGIC interactively to *see* the metrics; it only `display()`s tables and makes no decisions,
+# MAGIC and it is NOT part of the retraining job. The automated decisions live in two sibling
+# MAGIC job-task notebooks, `metric_violation_check.py` (model quality) and
+# MAGIC `feature_drift_check.py` (feature drift), which read these same metric tables headless
+# MAGIC and emit a true/false signal the retraining job acts on. Same tables, different reader:
+# MAGIC here a person looks; there the job decides.
+# MAGIC
 # MAGIC Two Lakehouse Monitors were created declaratively by the bundle: one over the
 # MAGIC batch report table and one over the online serving table. This lab refreshes them and
 # MAGIC reads the metric tables they produce, so you can see model quality and drift over time
