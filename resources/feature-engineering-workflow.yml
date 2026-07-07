@@ -1,5 +1,6 @@
-# Feature engineering workflow: silver -> gold features written to the Unity Catalog
-# Feature Store. Covers the "Model Development" session (feature access).
+# Feature engineering workflow: build the card/client feature tables in the Unity Catalog
+# Feature Store (written to the per-user `fraud` ML schema, not the gold layer). Covers the
+# "Model Development" session (feature access).
 # Bronze/silver preparation is handled separately by resources/data-ingestion-workflow.yml.
 # Docs: Feature Engineering in Unity Catalog https://learn.microsoft.com/azure/databricks/machine-learning/feature-store/
 resources:
@@ -7,9 +8,9 @@ resources:
     feature_engineering_job:
       name: ${bundle.target}-mlops-workshop-feature-engineering
       tasks:
-        - task_key: silver_to_gold_features
+        - task_key: build_features
           notebook_task:
-            notebook_path: ../${var.code_root}/feature_engineering/notebooks/silver_to_gold_features.py
+            notebook_path: ../${var.code_root}/feature_engineering/notebooks/build_features.py
             base_parameters:
               catalog_name: ${var.catalog_name}
               gold_schema: ${var.gold_schema}
