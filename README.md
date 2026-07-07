@@ -491,6 +491,7 @@ databricks-mlops-workshop/
     model-training-workflow.yml       deployment-job-workflow.yml
     batch-inference-workflow.yml      monitoring-resource.yml
   solution/                          ← complete notebooks, source of truth (with TODO markers)
+    exploration/notebooks/           ← optional read-only EDA (understand the data)
     data_ingestion/notebooks/        ← instructor-only data loaders (landing→bronze→silver)
     feature_engineering/notebooks/   ← notebook entrypoints per stage (mlops-stacks convention)
     training/notebooks/
@@ -513,6 +514,11 @@ modules sit alongside the notebook that uses them. This mirrors the
 The workshop is a sequence of hands-on labs. Each lab maps to an agenda session and to a
 stage in the module tree. The complete solutions live in `solution/`; the versions with TODO
 gaps are generated into `src/`, which is what the bundle deploys to attendees.
+
+Before the labs, there is an optional `exploration/notebooks/eda.py` notebook (no TODO gaps)
+that reads the gold `transactions_enriched` table to show the data's shape, the fraud class
+imbalance, and how fraud varies by amount, hour and merchant category. Run it interactively;
+it is not wired into a job.
 
 | # | Lab | Agenda session | Module |
 |---|---|---|---|
