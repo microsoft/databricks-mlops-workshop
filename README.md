@@ -552,10 +552,12 @@ alias, writing predictions (with the model version) for monitoring.
 Mosaic AI serving endpoint; query it with a brand-new transaction.
 
 **7. Inference monitoring.** Profile both the batch predictions and the live serving traffic
-with Lakehouse Monitoring to watch drift and model quality over time.
+with Lakehouse Monitoring to watch model quality, prediction drift and feature (data) drift
+over time.
 
-**8. Retraining workflow.** Trigger retraining from a monitoring signal, so a retrained and
-promoted model rolls out with no change to the inference code.
+**8. Retraining workflow.** Trigger retraining from a monitoring signal, either a drop in
+label-based quality or sustained feature drift, so a retrained and promoted model rolls out
+with no change to the inference code.
 
 ---
 

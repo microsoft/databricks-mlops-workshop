@@ -159,10 +159,47 @@ for label, table in [("batch", batch_table), ("online", online_table)]:
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 4. Feature (data) drift
+# MAGIC The same `_drift_metrics` table has a row per input **feature**, so we can watch the
+# MAGIC input distribution shift, not just the prediction. `js_distance` (0-1) is comparable
+# MAGIC across numeric and categorical columns. Rising drift on a key feature is an early
+# MAGIC warning that the world has moved; the retraining job's feature-drift check thresholds
+# MAGIC exactly these values.
+
+# COMMAND ----------
+
+features_to_watch = ["amount", "credit_score", "credit_limit", "yearly_income", "current_age"]
+batch_drift = f"{batch_table}_drift_metrics"
+if spark.catalog.tableExists(batch_drift):
+    feature_drift = (
+        spark.read.table(batch_drift)
+        .where(
+            F.col("column_name").isin(features_to_watch)
+            & F.col("slice_key").isNull()
+            & (F.col("drift_type") == "CONSECUTIVE")
+        )
+        .select(
+            F.col("window.start").alias("window_start"),
+            "column_name",
+            F.round("js_distance", 4).alias("js_distance"),
+        )
+        .orderBy("window_start", "column_name")
+    )
+    display(feature_drift)
+else:
+    print(f"{batch_drift} not ready yet; re-run after the refresh completes.")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Recap
 # MAGIC - **Two monitors, one picture:** batch (quality + drift) and online (drift-led) cover
 # MAGIC   both prediction distributions.
+# MAGIC - **Prediction drift vs feature drift:** section 3 watches the model's output
+# MAGIC   distribution; section 4 watches the input features (data drift). Both come from the
+# MAGIC   same `_drift_metrics` table.
 # MAGIC - The auto-generated dashboard (linked from each table in Catalog Explorer) is the
 # MAGIC   shareable view of everything above.
-# MAGIC - The retraining job reads the batch `_profile_metrics` quality trend and only
-# MAGIC   triggers training when it degrades; retraining then picks up the latest labelled data.
+# MAGIC - The retraining job acts on two signals: the batch `_profile_metrics` quality trend
+# MAGIC   (label-based) and sustained feature drift from `_drift_metrics`. Either one can
+# MAGIC   trigger training, which then picks up the latest labelled data.
