@@ -83,6 +83,11 @@ enriched = spark.read.table(source_table)
 # One row per entity (deduplicated), keyed by card_id / client_id. This is plain Spark
 # aggregation, so it is provided; publishing these to the Feature Store below is the step
 # you fill in.
+# For simplicity we take the card/client attributes from the single transactions_enriched
+# table, picking one value per entity with F.first. In the real world we would read them
+# from the entity dimension itself (the cards / users tables), because these attribute
+# values can change over time, so a per-transaction snapshot is arbitrary and the dimension
+# is the source of truth.
 card_features = enriched.groupBy("card_id").agg(
     F.first("credit_limit", ignorenulls=True).cast("double").alias("credit_limit"),
     F.first("num_cards_issued", ignorenulls=True).cast("int").alias("num_cards_issued"),
