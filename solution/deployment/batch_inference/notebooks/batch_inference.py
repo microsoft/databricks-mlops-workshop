@@ -138,8 +138,11 @@ scored = fe.score_batch(
 
 # MAGIC %md
 # MAGIC ## 3. Shape the inference table and persist
-# MAGIC Add the three columns the monitor needs alongside the prediction: the model version,
-# MAGIC a scoring timestamp, and the ground-truth label. Then append.
+# MAGIC Add the columns the monitor needs alongside the prediction: the model version, a
+# MAGIC scoring timestamp, the ground-truth label, and the **input feature values**. The
+# MAGIC features are logged on every row so the monitor can profile **feature (data) drift**,
+# MAGIC not just prediction drift (a monitor can only drift columns that are in the table).
+# MAGIC Then append.
 # MAGIC
 # MAGIC > The label (`is_fraud`) is joined here for the workshop so quality metrics compute
 # MAGIC > immediately. In the real world fraud is confirmed later (chargebacks), so you would
@@ -148,11 +151,22 @@ scored = fe.score_batch(
 # COMMAND ----------
 
 # Shape the inference table the monitor needs: the fraud score, a 0/1 class, the model
-# version, a scoring timestamp, and the label. This assembly is provided; the timestamp is
-# spread across the last 14 days so the daily monitor sees several windows (in production it
-# would just be current_timestamp()).
+# version, a scoring timestamp, the label, and the input feature values. This assembly is
+# provided; the timestamp is spread across the last 14 days so the daily monitor sees several
+# windows (in production it would just be current_timestamp()).
 labels = spark.read.table(source_table).select(
     "transaction_id", F.col("is_fraud").cast("int").alias("is_fraud")
+)
+
+# The entity feature values (credit/income/age) are looked up by fe.score_batch but not
+# returned as columns, so pull them from the gold source to log alongside the prediction.
+# Logging them is what makes FEATURE (data) drift monitorable downstream.
+entity_features = spark.read.table(source_table).select(
+    "transaction_id",
+    F.col("credit_score").cast("int").alias("credit_score"),
+    F.col("credit_limit").cast("double").alias("credit_limit"),
+    F.col("yearly_income").cast("double").alias("yearly_income"),
+    F.col("current_age").cast("int").alias("current_age"),
 )
 
 scored_at = F.to_timestamp(
@@ -163,6 +177,7 @@ predictions = (
     scored.withColumn("model_version", F.lit(model_version))
     .withColumn("scored_at", scored_at)
     .join(labels, on="transaction_id", how="left")
+    .join(entity_features, on="transaction_id", how="left")
     .select(
         "transaction_id",
         # The model serves a fraud PROBABILITY. Keep it as fraud_score and threshold it to a
@@ -172,6 +187,12 @@ predictions = (
         "model_version",
         "scored_at",
         "is_fraud",
+        # Feature (data) columns the monitor profiles for drift.
+        F.col("amount").cast("double").alias("amount"),
+        "credit_score",
+        "credit_limit",
+        "yearly_income",
+        "current_age",
     )
 )
 

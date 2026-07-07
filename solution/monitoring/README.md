@@ -6,3 +6,4 @@
 | `notebooks/process_serving_logs.py` | Unpack the serving endpoint's raw inference-table payloads into typed rows so the online monitor can profile them. |
 | `notebooks/metric_violation_check.py` | Retraining-trigger task: run the violation SQL over the monitor's profile metrics to decide whether model quality has degraded across recent windows. |
 | `notebooks/feature_drift_check.py` | Retraining-trigger task: threshold the monitor's `_drift_metrics` to decide whether sustained feature (data) drift on any watched column should trigger retraining. |
+| `notebooks/seed_drift.py` | Demo helper (attendee-runnable): score a deliberately shifted slice, append it to your own `fraud_predictions` with today's timestamp, and refresh your batch monitor so feature drift is visible during the session. |
