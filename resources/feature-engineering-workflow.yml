@@ -9,9 +9,10 @@ resources:
       name: ${bundle.target}-mlops-workshop-feature-engineering
       tasks:
         - task_key: build_features
+          existing_cluster_id: ${var.shared_cluster_id}
           notebook_task:
             notebook_path: ../${var.code_root}/feature_engineering/notebooks/build_features.py
             base_parameters:
               catalog_name: ${var.catalog_name}
               gold_schema: ${var.gold_schema}
-              user_schema: ${resources.schemas.user_workspace.name}
+              user_schema: ${var.user_schema}

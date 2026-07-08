@@ -7,10 +7,11 @@ resources:
       name: ${bundle.target}-mlops-workshop-batch-inference
       tasks:
         - task_key: batch_inference
+          existing_cluster_id: ${var.shared_cluster_id}
           notebook_task:
             notebook_path: ../${var.code_root}/deployment/batch_inference/notebooks/batch_inference.py
             base_parameters:
               model_name: ${var.model_name}
               catalog_name: ${var.catalog_name}
               gold_schema: ${var.gold_schema}
-              user_schema: ${resources.schemas.user_workspace.name}
+              user_schema: ${var.user_schema}

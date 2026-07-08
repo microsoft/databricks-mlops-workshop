@@ -8,6 +8,7 @@ resources:
       name: ${bundle.target}-mlops-workshop-training
       tasks:
         - task_key: train
+          existing_cluster_id: ${var.shared_cluster_id}
           notebook_task:
             notebook_path: ../${var.code_root}/training/notebooks/training.py
             base_parameters:
@@ -20,7 +21,7 @@ resources:
               model_name: ${var.model_name}
               catalog_name: ${var.catalog_name}
               gold_schema: ${var.gold_schema}
-              user_schema: ${resources.schemas.user_workspace.name}
+              user_schema: ${var.user_schema}
               # Connect this model to its deployment job so registering a new version
               # auto-triggers the governed evaluate -> approve -> deploy pipeline. The
               # validation + serving that used to be separate tasks now live in that job.

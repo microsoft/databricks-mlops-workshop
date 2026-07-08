@@ -63,6 +63,7 @@ resources:
       name: ${bundle.target}-mlops-workshop-retraining
       tasks:
         - task_key: monitored_metric_violation_check
+          existing_cluster_id: ${var.shared_cluster_id}
           notebook_task:
             notebook_path: ../${var.code_root}/monitoring/notebooks/metric_violation_check.py
             base_parameters:
