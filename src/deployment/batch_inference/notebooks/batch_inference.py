@@ -186,12 +186,20 @@ predictions = (
         "model_version",
         "scored_at",
         "is_fraud",
-        # Feature (data) columns the monitor profiles for drift.
+        # Every feature the model uses, so the monitor tracks drift on ALL of them: the
+        # slowly-changing entity features (looked up) and the on-demand function features
+        # (computed from the request). All are already present in `scored`.
         F.col("amount").cast("double").alias("amount"),
         "credit_score",
         "credit_limit",
         "yearly_income",
         "current_age",
+        "num_cards_issued",
+        "is_night",
+        "is_online",
+        "is_high_risk_mcc",
+        "amount_to_income_ratio",
+        "amount_to_credit_limit_ratio",
     )
 )
 

@@ -80,6 +80,18 @@ empty_schema = T.StructType(
         T.StructField("model_version", T.StringType()),
         T.StructField("scored_at", T.TimestampType()),
         T.StructField("is_fraud", T.IntegerType()),
+        # Same feature columns as the batch table so both monitors are symmetric.
+        T.StructField("amount", T.DoubleType()),
+        T.StructField("credit_score", T.IntegerType()),
+        T.StructField("credit_limit", T.DoubleType()),
+        T.StructField("yearly_income", T.DoubleType()),
+        T.StructField("current_age", T.IntegerType()),
+        T.StructField("num_cards_issued", T.IntegerType()),
+        T.StructField("is_night", T.BooleanType()),
+        T.StructField("is_online", T.BooleanType()),
+        T.StructField("is_high_risk_mcc", T.BooleanType()),
+        T.StructField("amount_to_income_ratio", T.DoubleType()),
+        T.StructField("amount_to_credit_limit_ratio", T.DoubleType()),
     ]
 )
 
@@ -159,14 +171,58 @@ except Exception as exc:
 
 # COMMAND ----------
 
-# Attach the confirmed label where we have it (null otherwise, online labels lag) and match
-# the batch fraud_predictions schema so both monitors line up. The join is provided.
-labels = spark.read.table(gold_table).select(
-    "transaction_id", F.col("is_fraud").cast("int").alias("is_fraud")
+# Attach the confirmed label AND the same feature columns as the batch fraud_predictions
+# table, so the two monitors are symmetric and track drift on every model feature. The serving
+# payload only logs raw inputs, so we resolve the features the model used, by transaction_id,
+# from the gold source: entity features are columns, and the on-demand features are computed
+# with the SAME UC functions the model uses (no train/serve skew). The join is provided.
+schema_fqn = f"{catalog_name}.{user_schema}"
+gold_raw = spark.read.table(gold_table).select(
+    "transaction_id",
+    F.col("amount").cast("double").alias("amount"),
+    F.col("credit_score").cast("int").alias("credit_score"),
+    F.col("credit_limit").cast("double").alias("credit_limit"),
+    F.col("yearly_income").cast("double").alias("yearly_income"),
+    F.col("current_age").cast("int").alias("current_age"),
+    F.col("num_cards_issued").cast("int").alias("num_cards_issued"),
+    "transaction_hour",
+    "use_chip",
+    "mcc",
+    F.col("is_fraud").cast("int").alias("is_fraud"),
 )
 
-online = exploded.join(labels, on="transaction_id", how="left").select(
-    "transaction_id", "fraud_score", "prediction", "model_version", "scored_at", "is_fraud"
+online = (
+    exploded.join(gold_raw, on="transaction_id", how="left")
+    .withColumn("is_night", F.expr(f"{schema_fqn}.ff_is_night(transaction_hour)"))
+    .withColumn("is_online", F.expr(f"{schema_fqn}.ff_is_online(use_chip)"))
+    .withColumn("is_high_risk_mcc", F.expr(f"{schema_fqn}.ff_is_high_risk_mcc(mcc)"))
+    .withColumn(
+        "amount_to_income_ratio",
+        F.expr(f"{schema_fqn}.ff_amount_to_income_ratio(amount, yearly_income)"),
+    )
+    .withColumn(
+        "amount_to_credit_limit_ratio",
+        F.expr(f"{schema_fqn}.ff_amount_to_credit_limit_ratio(amount, credit_limit)"),
+    )
+    .select(
+        "transaction_id",
+        "fraud_score",
+        "prediction",
+        "model_version",
+        "scored_at",
+        "is_fraud",
+        "amount",
+        "credit_score",
+        "credit_limit",
+        "yearly_income",
+        "current_age",
+        "num_cards_issued",
+        "is_night",
+        "is_online",
+        "is_high_risk_mcc",
+        "amount_to_income_ratio",
+        "amount_to_credit_limit_ratio",
+    )
 )
 
 # TODO-BEGIN: write the online inference table so the online monitor can read it

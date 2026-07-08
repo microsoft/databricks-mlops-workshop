@@ -176,7 +176,19 @@ for label, table in [("batch", batch_table), ("online", online_table)]:
 
 # COMMAND ----------
 
-features_to_watch = ["amount", "credit_score", "credit_limit", "yearly_income", "current_age"]
+features_to_watch = [
+    "amount",
+    "credit_score",
+    "credit_limit",
+    "yearly_income",
+    "current_age",
+    "num_cards_issued",
+    "is_night",
+    "is_online",
+    "is_high_risk_mcc",
+    "amount_to_income_ratio",
+    "amount_to_credit_limit_ratio",
+]
 batch_drift = f"{batch_table}_drift_metrics"
 if spark.catalog.tableExists(batch_drift):
     feature_drift = (

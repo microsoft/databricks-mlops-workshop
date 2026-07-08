@@ -43,7 +43,7 @@ dbutils.widgets.text(
 )
 dbutils.widgets.text(
     "features_to_monitor",
-    "amount,credit_score,credit_limit,yearly_income,current_age",
+    "amount,credit_score,credit_limit,yearly_income,current_age,num_cards_issued,is_night,is_online,is_high_risk_mcc,amount_to_income_ratio,amount_to_credit_limit_ratio",
     label="Comma-separated feature columns to watch",
 )
 dbutils.widgets.text("drift_metric", "js_distance", label="Drift metric column to threshold")

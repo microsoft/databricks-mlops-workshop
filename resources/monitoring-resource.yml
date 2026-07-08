@@ -88,7 +88,7 @@ resources:
             notebook_path: ../${var.code_root}/monitoring/notebooks/feature_drift_check.py
             base_parameters:
               table_name_under_monitor: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_predictions
-              features_to_monitor: amount,credit_score,credit_limit,yearly_income,current_age
+              features_to_monitor: amount,credit_score,credit_limit,yearly_income,current_age,num_cards_issued,is_night,is_online,is_high_risk_mcc,amount_to_income_ratio,amount_to_credit_limit_ratio
               drift_metric: js_distance
               drift_violation_threshold: "0.20"
               num_evaluation_windows: "5"
