@@ -164,16 +164,10 @@ labels = spark.read.table(source_table).select(
     "transaction_id", F.col("is_fraud").cast("int").alias("is_fraud")
 )
 
-# The entity feature values (credit/income/age) are looked up by fe.score_batch but not
-# returned as columns, so pull them from the gold source to log alongside the prediction.
-# Logging them is what makes FEATURE (data) drift monitorable downstream.
-entity_features = spark.read.table(source_table).select(
-    "transaction_id",
-    F.col("credit_score").cast("int").alias("credit_score"),
-    F.col("credit_limit").cast("double").alias("credit_limit"),
-    F.col("yearly_income").cast("double").alias("yearly_income"),
-    F.col("current_age").cast("int").alias("current_age"),
-)
+# fe.score_batch already returns the looked-up entity features (credit_score, credit_limit,
+# yearly_income, current_age) plus the input `amount`, so we log those columns straight from
+# `scored`. Logging them is what makes FEATURE (data) drift monitorable downstream. (Re-joining
+# them from the source would duplicate the columns and make the reference ambiguous.)
 
 scored_at = F.to_timestamp(
     F.date_sub(F.current_date(), (F.col("transaction_id") % F.lit(14)).cast("int"))
@@ -183,7 +177,6 @@ predictions = (
     scored.withColumn("model_version", F.lit(model_version))
     .withColumn("scored_at", scored_at)
     .join(labels, on="transaction_id", how="left")
-    .join(entity_features, on="transaction_id", how="left")
     .select(
         "transaction_id",
         # The model serves a fraud PROBABILITY. Keep it as fraud_score and threshold it to a

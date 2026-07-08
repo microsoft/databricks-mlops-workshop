@@ -139,19 +139,14 @@ scored = fe.score_batch(
 labels = spark.read.table(source_table).select(
     "transaction_id", F.col("is_fraud").cast("int").alias("is_fraud")
 )
-entity_features = spark.read.table(source_table).select(
-    "transaction_id",
-    F.col("credit_score").cast("int").alias("credit_score"),
-    F.col("credit_limit").cast("double").alias("credit_limit"),
-    F.col("yearly_income").cast("double").alias("yearly_income"),
-    F.col("current_age").cast("int").alias("current_age"),
-)
 
+# fe.score_batch already returns the looked-up entity features and the input `amount`, so we
+# log those columns straight from `scored` (re-joining them from the source would duplicate
+# the columns and make the reference ambiguous).
 drifted = (
     scored.withColumn("model_version", F.lit(model_version))
     .withColumn("scored_at", F.current_timestamp())
     .join(labels, on="transaction_id", how="left")
-    .join(entity_features, on="transaction_id", how="left")
     .select(
         "transaction_id",
         F.col("prediction").alias("fraud_score"),
