@@ -4,17 +4,27 @@
 #       Settings & targets https://learn.microsoft.com/azure/databricks/dev-tools/bundles/settings
 bundle:
   name: mlops_workshop
+  engine: direct
 
 variables:
+  shared_cluster_id:
+    description: Existing shared cluster used by workshop jobs.
+    lookup:
+      cluster: "Shared Compute - ML Workshop"
   experiment_name:
     description: MLflow experiment for model training runs (per-user path).
     default: /Users/${workspace.current_user.userName}/${bundle.target}-mlops-workshop-fraud
   model_name:
     description: Unity Catalog registered model name (in the per-user workspace schema).
-    default: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_detection
+    default: ${var.catalog_name}.${var.user_schema}.fraud_detection
   catalog_name:
     description: Unity Catalog catalog for the environment (dev/staging/prod).
-    default: dev
+    default: adoption_workshop
+  user_schema:
+    description: >-
+      Per-user ML outputs schema. Resolves to the user_workspace schema resource, so it
+      picks up development mode's prefix (base `fraud` -> `dev_<user>_fraud`).
+    default: ${resources.schemas.user_workspace.name}
   gold_schema:
     description: Shared, read-only gold schema holding the source consumption tables.
     default: fraud_gold
@@ -35,8 +45,6 @@ variables:
 
 include:
   # All DAB resources (jobs, models, experiments, monitors) live in ./resources.
-  # Instructor-only data preparation (landing -> bronze -> silver).
-  - ./resources/data-ingestion-workflow.yml
   - ./resources/schemas-resource.yml
   - ./resources/ml-artifacts-resource.yml
   - ./resources/feature-engineering-workflow.yml
@@ -82,7 +90,8 @@ targets:
     mode: development
     default: true
     variables:
-      catalog_name: dev
+      # Temporary override to adoption_workshop for the workshop; revert to dev later.
+      catalog_name: adoption_workshop
     # workspace:
     #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
 
