@@ -23,7 +23,8 @@
 # MAGIC Parameters:
 # MAGIC - `table_name_under_monitor`: the inference table the monitor profiles.
 # MAGIC - `features_to_monitor`: comma-separated feature columns to watch (e.g. `amount,credit_score`).
-# MAGIC - `drift_metric`: the drift column to threshold (default `js_distance`, in [0, 1]).
+# MAGIC - `drift_metric`: the drift column to threshold (default `population_stability_index`;
+# MAGIC   Lakehouse Monitoring populates it for numeric features, where `js_distance` is null).
 # MAGIC - `drift_violation_threshold`: drift is a "higher is worse" metric, so a value **above**
 # MAGIC   this counts as a violation.
 # MAGIC - `num_evaluation_windows` / `num_violation_windows`: how many recent windows to look at,
@@ -46,12 +47,14 @@ dbutils.widgets.text(
     "amount,credit_score,credit_limit,yearly_income,current_age,num_cards_issued,is_night,is_online,is_high_risk_mcc,amount_to_income_ratio,amount_to_credit_limit_ratio",
     label="Comma-separated feature columns to watch",
 )
-dbutils.widgets.text("drift_metric", "js_distance", label="Drift metric column to threshold")
+dbutils.widgets.text(
+    "drift_metric", "population_stability_index", label="Drift metric column to threshold"
+)
 dbutils.widgets.text(
     "drift_violation_threshold", "0.2", label="Flag drift when the metric rises above this"
 )
 dbutils.widgets.text("num_evaluation_windows", "5", label="Number of recent windows to check")
-dbutils.widgets.text("num_violation_windows", "2", label="Windows that must violate to trigger")
+dbutils.widgets.text("num_violation_windows", "1", label="Windows that must violate to trigger")
 
 # COMMAND ----------
 
@@ -68,12 +71,16 @@ dbutils.widgets.text("num_violation_windows", "2", label="Windows that must viol
 # MAGIC - `column_name` is one of the monitored features (not `:table`),
 # MAGIC - `slice_key IS NULL` -> the whole population, not a single data slice,
 # MAGIC - `drift_type = "CONSECUTIVE"` -> window-over-window drift (we have no baseline table; a
-# MAGIC   baseline-vs-training comparison would use `drift_type = "BASELINE"`),
-# MAGIC - `log_type = "INPUT"` -> the primary table, not baseline-table metrics.
+# MAGIC   baseline-vs-training comparison would use `drift_type = "BASELINE"`).
 # MAGIC
-# MAGIC `js_distance` (Jensen-Shannon) is in [0, 1] and works for both numeric and categorical
-# MAGIC columns, so it is a good single drift knob. If **any** monitored feature is in violation,
-# MAGIC we flag `is_drift_violated`.
+# MAGIC The table can carry more than one row per window (one per `model_version` plus a `*`
+# MAGIC aggregate), so we take the max metric per window to get one value each.
+# MAGIC
+# MAGIC `population_stability_index` (PSI) is populated for numeric features (Lakehouse
+# MAGIC Monitoring leaves `js_distance` null for numeric columns and only fills it for
+# MAGIC categoricals), so PSI is the drift knob that actually fires on features like `amount`.
+# MAGIC A common reading is >0.1 moderate, >0.25 significant. If **any** monitored feature is in
+# MAGIC violation, we flag `is_drift_violated`.
 
 # COMMAND ----------
 
@@ -108,10 +115,10 @@ for feature in features_to_monitor:
             (F.col("column_name") == feature)
             & F.col("slice_key").isNull()
             & (F.col("drift_type") == "CONSECUTIVE")
-            & (F.col("log_type") == "INPUT")
             & metric_value.isNotNull()
         )
-        .select(metric_value.alias("metric_value"), F.col("window"))
+        .groupBy(F.col("window"))
+        .agg(F.max(metric_value).alias("metric_value"))
         .orderBy(F.col("window").desc())
         .limit(num_evaluation_windows)
         .collect()

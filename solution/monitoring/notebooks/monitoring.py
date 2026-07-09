@@ -156,7 +156,7 @@ for label, table in [("batch", batch_table), ("online", online_table)]:
             )
             .select(
                 F.col("window.start").alias("window_start"),
-                F.round("js_distance", 4).alias("js_distance"),
+                F.round("population_stability_index", 4).alias("population_stability_index"),
                 F.round("wasserstein_distance", 4).alias("wasserstein_distance"),
             )
             .orderBy("window_start")
@@ -170,8 +170,9 @@ for label, table in [("batch", batch_table), ("online", online_table)]:
 # MAGIC %md
 # MAGIC ## 4. Feature (data) drift
 # MAGIC The same `_drift_metrics` table has a row per input **feature**, so we can watch the
-# MAGIC input distribution shift, not just the prediction. `js_distance` (0-1) is comparable
-# MAGIC across numeric and categorical columns. Rising drift on a key feature is an early
+# MAGIC input distribution shift, not just the prediction. `population_stability_index` (PSI)
+# MAGIC is populated for numeric features (Lakehouse Monitoring leaves `js_distance` null for
+# MAGIC them and only fills it for categoricals). Rising drift on a key feature is an early
 # MAGIC warning that the world has moved; the retraining job's feature-drift check thresholds
 # MAGIC exactly these values.
 
@@ -202,7 +203,8 @@ if spark.catalog.tableExists(batch_drift):
         .select(
             F.col("window.start").alias("window_start"),
             "column_name",
-            F.round("js_distance", 4).alias("js_distance"),
+            F.round("population_stability_index", 4).alias("population_stability_index"),
+            F.round("wasserstein_distance", 4).alias("wasserstein_distance"),
         )
         .orderBy("window_start", "column_name")
     )
