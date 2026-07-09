@@ -5,8 +5,9 @@
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
 # MAGIC A small, safe helper so you can *see* feature drift inside the workshop instead of
-# MAGIC waiting days for it to happen naturally. It reuses the batch-inference scoring path but
-# MAGIC scores a **deliberately shifted slice** and stamps it with **today's** timestamp, so the
+# MAGIC waiting days for it to happen naturally. The batch inference table is already fully
+# MAGIC scored, so instead of running the model again this takes a sample of existing
+# MAGIC predictions, inflates the amount-driven features, and stamps them with **now**, so the
 # MAGIC most recent monitor window looks different from the previous one.
 # MAGIC
 # MAGIC It writes to **your own** tables (the per-user `dev_<you>_fraud` schema), exactly like
@@ -24,29 +25,16 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -q "mlflow>=3.0" --upgrade
-# MAGIC %pip install -q databricks-feature-engineering databricks-sdk
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 dbutils.widgets.text("catalog_name", "dev")
-dbutils.widgets.text("gold_schema", "fraud_gold")
 dbutils.widgets.text("user_schema", "")
-dbutils.widgets.text("model_name", "")
-dbutils.widgets.text("model_alias", "champion")
 dbutils.widgets.text("amount_multiplier", "6.0", label="Scale amount by this to force drift")
 dbutils.widgets.text("num_rows", "5000", label="How many drifted rows to append")
 dbutils.widgets.text("refresh_monitor", "true", label="Refresh the batch monitor after writing")
 
-catalog_name = dbutils.widgets.get("catalog_name")
-gold_schema = dbutils.widgets.get("gold_schema")
-user_schema = dbutils.widgets.get("user_schema")
-
 from pyspark.sql import functions as F
+
+catalog_name = dbutils.widgets.get("catalog_name")
+user_schema = dbutils.widgets.get("user_schema")
 
 # Interactive fallback: jobs pass the resolved personal schema; running standalone derives
 # the same per-user name the bundle uses (dev_<short>_fraud) so runs stay isolated.
@@ -55,126 +43,59 @@ if not user_schema:
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
     user_schema = f"dev_{_short}_fraud"
 
-model_alias = dbutils.widgets.get("model_alias")
-model_name = dbutils.widgets.get("model_name") or f"{catalog_name}.{user_schema}.fraud_detection"
 amount_multiplier = float(dbutils.widgets.get("amount_multiplier"))
 num_rows = int(dbutils.widgets.get("num_rows"))
 refresh_monitor = dbutils.widgets.get("refresh_monitor").strip().lower() == "true"
 
-source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
 predictions_table = f"{catalog_name}.{user_schema}.fraud_predictions"
 
-print(f"Model:       {model_name}@{model_alias}")
-print(f"Write to:    {predictions_table}")
-print(f"Drift:       amount x{amount_multiplier} on {num_rows} rows, stamped today")
-
-# COMMAND ----------
-
-import os
-
-import mlflow
-from databricks.feature_engineering import FeatureEngineeringClient
-from mlflow.tracking import MlflowClient
-
-# Serverless workaround: fe.score_batch runs the model via mlflow.pyfunc.spark_udf, which on
-# serverless ships the model through the DBConnect addArtifact path and then version-checks the
-# UDF sandbox with Version(runtime_version). The serverless sandbox reports a non-PEP440 tag
-# (e.g. '18.x-photon-scala2'), so that parse throws InvalidVersion. This mlflow flag skips the
-# addArtifact path and has each executor pull the model straight from the artifact store,
-# avoiding the broken check. Remove once the serverless sandbox reports a parseable version.
-os.environ["_MLFLOW_SPARK_UDF_SERVERLESS_SKIP_DBCONNECT_ARTIFACT"] = "true"
-
-mlflow.set_registry_uri("databricks-uc")
-fe = FeatureEngineeringClient()
-
-client = MlflowClient()
-champion = client.get_model_version_by_alias(model_name, model_alias)
-model_version = str(champion.version)
-print(f"{model_alias} -> version {model_version}")
+print(f"Table: {predictions_table}")
+print(f"Drift: amount x{amount_multiplier} on {num_rows} rows, stamped now")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Build a deliberately drifted batch
-# MAGIC Pick a skewed slice (younger clients) and inflate `amount`, so several monitored
-# MAGIC features shift at once: `amount` directly, and the on-demand amount ratios and
-# MAGIC `current_age`/income columns via the slice. This is the "world changed" we want the
-# MAGIC monitor to catch.
+# MAGIC ## 1. Build a drifted batch from already-scored rows
+# MAGIC The batch inference table is already fully scored with every feature column, so we do
+# MAGIC not re-run the model. Take a sample of existing predictions, inflate the amount-driven
+# MAGIC features (`amount` and the two ratios that scale with it), and stamp them with the
+# MAGIC current time so they land in the newest monitor window. This is the "world changed" we
+# MAGIC want the monitor to catch.
 
 # COMMAND ----------
 
-# A skewed subpopulation so entity features (age/income/credit) also move, plus an inflated
-# amount so the amount distribution clearly separates from the normal baseline windows.
-to_score = (
-    spark.read.table(source_table)
-    .where(F.col("current_age") < F.lit(35))
-    .select(
-        "transaction_id",
-        "card_id",
-        "client_id",
-        (F.col("amount").cast("double") * F.lit(amount_multiplier)).alias("amount"),
-        "transaction_hour",
-        "mcc",
-        "use_chip",
-    )
+# Build the drifted sample by selecting from the same table (keeps the schema identical, no
+# mergeSchema needed) and scaling the amount-driven features. We stage it to a separate table
+# first so the append does not read from the table it is writing to; serverless does not allow
+# cache/checkpoint, and a staging table is the clean way to break that dependency.
+stage_table = f"{catalog_name}.{user_schema}._seed_drift_stage"
+(
+    spark.read.table(predictions_table)
     .limit(num_rows)
-)
-print(f"Scoring {to_score.count():,} drifted transactions")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 2. Score and append with today's timestamp
-# MAGIC Same `score_batch` path as batch inference, but every row is stamped with the current
-# MAGIC timestamp so it lands in the newest monitor window, and we log the same feature columns
-# MAGIC so the monitor can profile their drift.
-
-# COMMAND ----------
-
-scored = fe.score_batch(
-    model_uri=f"models:/{model_name}@{model_alias}",
-    df=to_score,
-)
-
-labels = spark.read.table(source_table).select(
-    "transaction_id", F.col("is_fraud").cast("int").alias("is_fraud")
-)
-
-# fe.score_batch already returns the looked-up entity features and the input `amount`, so we
-# log those columns straight from `scored` (re-joining them from the source would duplicate
-# the columns and make the reference ambiguous).
-drifted = (
-    scored.withColumn("model_version", F.lit(model_version))
-    .withColumn("scored_at", F.current_timestamp())
-    .join(labels, on="transaction_id", how="left")
-    .select(
-        "transaction_id",
-        F.col("prediction").alias("fraud_score"),
-        (F.col("prediction") >= F.lit(0.5)).cast("int").alias("prediction"),
-        "model_version",
-        "scored_at",
-        "is_fraud",
-        F.col("amount").cast("double").alias("amount"),
-        "credit_score",
-        "credit_limit",
-        "yearly_income",
-        "current_age",
-        "num_cards_issued",
-        "is_night",
-        "is_online",
-        "is_high_risk_mcc",
-        "amount_to_income_ratio",
-        "amount_to_credit_limit_ratio",
+    .withColumn("amount", F.col("amount") * F.lit(amount_multiplier))
+    .withColumn(
+        "amount_to_income_ratio", F.col("amount_to_income_ratio") * F.lit(amount_multiplier)
     )
+    .withColumn(
+        "amount_to_credit_limit_ratio",
+        F.col("amount_to_credit_limit_ratio") * F.lit(amount_multiplier),
+    )
+    .withColumn("scored_at", F.current_timestamp())
+    .write.mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(stage_table)
 )
 
-(drifted.write.mode("append").option("mergeSchema", "true").saveAsTable(predictions_table))
-print(f"Appended {drifted.count():,} drifted rows to {predictions_table}")
+drifted = spark.read.table(stage_table)
+drifted.write.mode("append").saveAsTable(predictions_table)
+n = drifted.count()
+spark.sql(f"DROP TABLE IF EXISTS {stage_table}")
+print(f"Appended {n:,} drifted rows to {predictions_table}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Refresh the batch monitor
+# MAGIC ## 2. Refresh the batch monitor
 # MAGIC Recompute the profile/drift metrics so the new window shows up. This takes a few
 # MAGIC minutes; when it finishes, `monitoring.py` section 4 and `feature_drift_check.py` will
 # MAGIC reflect the drift.
