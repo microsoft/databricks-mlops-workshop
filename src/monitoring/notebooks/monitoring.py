@@ -4,6 +4,14 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
+# MAGIC **What this notebook is:** the human-facing dashboard. You open and run it
+# MAGIC interactively to *see* the metrics; it only `display()`s tables and makes no decisions,
+# MAGIC and it is NOT part of the retraining job. The automated decisions live in two sibling
+# MAGIC job-task notebooks, `metric_violation_check.py` (model quality) and
+# MAGIC `feature_drift_check.py` (feature drift), which read these same metric tables headless
+# MAGIC and emit a true/false signal the retraining job acts on. Same tables, different reader:
+# MAGIC here a person looks; there the job decides.
+# MAGIC
 # MAGIC Two Lakehouse Monitors were created declaratively by the bundle: one over the
 # MAGIC batch report table and one over the online serving table. This lab refreshes them and
 # MAGIC reads the metric tables they produce, so you can see model quality and drift over time
@@ -147,7 +155,7 @@ for label, table in [("batch", batch_table), ("online", online_table)]:
             )
             .select(
                 F.col("window.start").alias("window_start"),
-                F.round("js_distance", 4).alias("js_distance"),
+                F.round("population_stability_index", 4).alias("population_stability_index"),
                 F.round("wasserstein_distance", 4).alias("wasserstein_distance"),
             )
             .orderBy("window_start")
@@ -159,10 +167,61 @@ for label, table in [("batch", batch_table), ("online", online_table)]:
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 4. Feature (data) drift
+# MAGIC The same `_drift_metrics` table has a row per input **feature**, so we can watch the
+# MAGIC input distribution shift, not just the prediction. `population_stability_index` (PSI)
+# MAGIC is populated for numeric features (Lakehouse Monitoring leaves `js_distance` null for
+# MAGIC them and only fills it for categoricals). Rising drift on a key feature is an early
+# MAGIC warning that the world has moved; the retraining job's feature-drift check thresholds
+# MAGIC exactly these values.
+
+# COMMAND ----------
+
+features_to_watch = [
+    "amount",
+    "credit_score",
+    "credit_limit",
+    "yearly_income",
+    "current_age",
+    "num_cards_issued",
+    "is_night",
+    "is_online",
+    "is_high_risk_mcc",
+    "amount_to_income_ratio",
+    "amount_to_credit_limit_ratio",
+]
+batch_drift = f"{batch_table}_drift_metrics"
+if spark.catalog.tableExists(batch_drift):
+    feature_drift = (
+        spark.read.table(batch_drift)
+        .where(
+            F.col("column_name").isin(features_to_watch)
+            & F.col("slice_key").isNull()
+            & (F.col("drift_type") == "CONSECUTIVE")
+        )
+        .select(
+            F.col("window.start").alias("window_start"),
+            "column_name",
+            F.round("population_stability_index", 4).alias("population_stability_index"),
+            F.round("wasserstein_distance", 4).alias("wasserstein_distance"),
+        )
+        .orderBy("window_start", "column_name")
+    )
+    display(feature_drift)
+else:
+    print(f"{batch_drift} not ready yet; re-run after the refresh completes.")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Recap
 # MAGIC - **Two monitors, one picture:** batch (quality + drift) and online (drift-led) cover
 # MAGIC   both prediction distributions.
+# MAGIC - **Prediction drift vs feature drift:** section 3 watches the model's output
+# MAGIC   distribution; section 4 watches the input features (data drift). Both come from the
+# MAGIC   same `_drift_metrics` table.
 # MAGIC - The auto-generated dashboard (linked from each table in Catalog Explorer) is the
 # MAGIC   shareable view of everything above.
-# MAGIC - The retraining job reads the batch `_profile_metrics` quality trend and only
-# MAGIC   triggers training when it degrades; retraining then picks up the latest labelled data.
+# MAGIC - The retraining job acts on two signals: the batch `_profile_metrics` quality trend
+# MAGIC   (label-based) and sustained feature drift from `_drift_metrics`. Either one can
+# MAGIC   trigger training, which then picks up the latest labelled data.

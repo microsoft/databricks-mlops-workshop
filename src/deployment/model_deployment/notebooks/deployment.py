@@ -18,7 +18,9 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -q --upgrade databricks-sdk mlflow "databricks-feature-engineering>=0.13"
+# MAGIC %pip install -q "mlflow>=3.0" --upgrade
+# MAGIC %pip install -q --upgrade databricks-sdk
+# MAGIC %pip install -q databricks-feature-engineering
 
 # COMMAND ----------
 

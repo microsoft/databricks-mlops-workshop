@@ -5,7 +5,8 @@
 # retraining job:
 #   * batch_monitor  -> the weekly-report table (has labels -> drift AND quality)
 #   * online_monitor -> the unpacked serving table (labels lag -> drift-led)
-#   * retraining_job -> checks the batch quality trend and triggers model_training_job
+#   * retraining_job -> checks the batch quality trend AND sustained feature drift, and
+#                       triggers model_training_job when either signal fires
 #
 # The chicken-and-egg catch: a `quality_monitor` needs its table to already exist at deploy
 # time, and there's no way to order a monitor after the job that creates its table. We solve
@@ -81,10 +82,37 @@ resources:
             left: "{{tasks.monitored_metric_violation_check.values.is_metric_violated}}"
             right: "true"
 
+        # Feature (data) drift check: sustained input drift on any watched feature is a
+        # second, label-free signal. Runs in parallel with the quality check.
+        - task_key: feature_drift_check
+          notebook_task:
+            notebook_path: ../${var.code_root}/monitoring/notebooks/feature_drift_check.py
+            base_parameters:
+              table_name_under_monitor: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_predictions
+              features_to_monitor: amount,credit_score,credit_limit,yearly_income,current_age,num_cards_issued,is_night,is_online,is_high_risk_mcc,amount_to_income_ratio,amount_to_credit_limit_ratio
+              drift_metric: population_stability_index
+              drift_violation_threshold: "0.20"
+              num_evaluation_windows: "5"
+              num_violation_windows: "1"
+
+        - task_key: is_feature_drift_violated
+          depends_on:
+            - task_key: feature_drift_check
+          condition_task:
+            op: EQUAL_TO
+            left: "{{tasks.feature_drift_check.values.is_drift_violated}}"
+            right: "true"
+
+        # Retrain if EITHER the quality check OR the feature-drift check fired. Both condition
+        # tasks feed this one with their `true` branch; AT_LEAST_ONE_SUCCESS makes it an OR
+        # (it runs as long as at least one true-branch was taken, the other is just skipped).
         - task_key: trigger_retraining
           depends_on:
             - task_key: is_metric_violated
               outcome: "true"
+            - task_key: is_feature_drift_violated
+              outcome: "true"
+          run_if: AT_LEAST_ONE_SUCCESS
           run_job_task:
             job_id: ${resources.jobs.model_training_job.id}
 

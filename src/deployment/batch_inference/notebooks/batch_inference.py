@@ -70,10 +70,20 @@ print(f"Write to:    {predictions_table}")
 
 # COMMAND ----------
 
+import os
+
 import mlflow
 from databricks.feature_engineering import FeatureEngineeringClient
 from mlflow.tracking import MlflowClient
 from pyspark.sql import functions as F
+
+# Serverless workaround: fe.score_batch runs the model via mlflow.pyfunc.spark_udf, which on
+# serverless ships the model through the DBConnect addArtifact path and then version-checks the
+# UDF sandbox with Version(runtime_version). The serverless sandbox reports a non-PEP440 tag
+# (e.g. '18.x-photon-scala2'), so that parse throws InvalidVersion. This mlflow flag skips the
+# addArtifact path and has each executor pull the model straight from the artifact store,
+# avoiding the broken check. Remove once the serverless sandbox reports a parseable version.
+os.environ["_MLFLOW_SPARK_UDF_SERVERLESS_SKIP_DBCONNECT_ARTIFACT"] = "true"
 
 mlflow.set_registry_uri("databricks-uc")
 fe = FeatureEngineeringClient()
@@ -134,8 +144,11 @@ print(f"Scoring {to_score.count():,} transactions")
 
 # MAGIC %md
 # MAGIC ## 3. Shape the inference table and persist
-# MAGIC Add the three columns the monitor needs alongside the prediction: the model version,
-# MAGIC a scoring timestamp, and the ground-truth label. Then append.
+# MAGIC Add the columns the monitor needs alongside the prediction: the model version, a
+# MAGIC scoring timestamp, the ground-truth label, and the **input feature values**. The
+# MAGIC features are logged on every row so the monitor can profile **feature (data) drift**,
+# MAGIC not just prediction drift (a monitor can only drift columns that are in the table).
+# MAGIC Then append.
 # MAGIC
 # MAGIC > The label (`is_fraud`) is joined here for the workshop so quality metrics compute
 # MAGIC > immediately. In the real world fraud is confirmed later (chargebacks), so you would
@@ -144,12 +157,17 @@ print(f"Scoring {to_score.count():,} transactions")
 # COMMAND ----------
 
 # Shape the inference table the monitor needs: the fraud score, a 0/1 class, the model
-# version, a scoring timestamp, and the label. This assembly is provided; the timestamp is
-# spread across the last 14 days so the daily monitor sees several windows (in production it
-# would just be current_timestamp()).
+# version, a scoring timestamp, the label, and the input feature values. This assembly is
+# provided; the timestamp is spread across the last 14 days so the daily monitor sees several
+# windows (in production it would just be current_timestamp()).
 labels = spark.read.table(source_table).select(
     "transaction_id", F.col("is_fraud").cast("int").alias("is_fraud")
 )
+
+# fe.score_batch already returns the looked-up entity features (credit_score, credit_limit,
+# yearly_income, current_age) plus the input `amount`, so we log those columns straight from
+# `scored`. Logging them is what makes FEATURE (data) drift monitorable downstream. (Re-joining
+# them from the source would duplicate the columns and make the reference ambiguous.)
 
 scored_at = F.to_timestamp(
     F.date_sub(F.current_date(), (F.col("transaction_id") % F.lit(14)).cast("int"))
@@ -168,6 +186,20 @@ predictions = (
         "model_version",
         "scored_at",
         "is_fraud",
+        # Every feature the model uses, so the monitor tracks drift on ALL of them: the
+        # slowly-changing entity features (looked up) and the on-demand function features
+        # (computed from the request). All are already present in `scored`.
+        F.col("amount").cast("double").alias("amount"),
+        "credit_score",
+        "credit_limit",
+        "yearly_income",
+        "current_age",
+        "num_cards_issued",
+        "is_night",
+        "is_online",
+        "is_high_risk_mcc",
+        "amount_to_income_ratio",
+        "amount_to_credit_limit_ratio",
     )
 )
 
