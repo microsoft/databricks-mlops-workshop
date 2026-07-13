@@ -24,7 +24,7 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "adoption_workshop")
-dbutils.widgets.text("user_schema", "")
+dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("amount_multiplier", "6.0", label="Scale amount by this to force drift")
 dbutils.widgets.text("num_rows", "5000", label="How many drifted rows to append")
 dbutils.widgets.text("refresh_monitor", "true", label="Refresh the batch monitor after writing")
@@ -32,20 +32,20 @@ dbutils.widgets.text("refresh_monitor", "true", label="Refresh the batch monitor
 from pyspark.sql import functions as F
 
 catalog_name = dbutils.widgets.get("catalog_name")
-user_schema = dbutils.widgets.get("user_schema")
+ml_schema = dbutils.widgets.get("ml_schema")
 
 # Interactive fallback: jobs pass the resolved personal schema; running standalone derives
 # the same per-user name the bundle uses (dev_<short>_fraud) so runs stay isolated.
-if not user_schema:
+if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    user_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud"
 
 amount_multiplier = float(dbutils.widgets.get("amount_multiplier"))
 num_rows = int(dbutils.widgets.get("num_rows"))
 refresh_monitor = dbutils.widgets.get("refresh_monitor").strip().lower() == "true"
 
-predictions_table = f"{catalog_name}.{user_schema}.fraud_predictions"
+predictions_table = f"{catalog_name}.{ml_schema}.fraud_predictions"
 
 print(f"Table: {predictions_table}")
 print(f"Drift: amount x{amount_multiplier} on {num_rows} rows, stamped now")
@@ -66,7 +66,7 @@ print(f"Drift: amount x{amount_multiplier} on {num_rows} rows, stamped now")
 # mergeSchema needed) and scaling the amount-driven features. Stage it to a separate table
 # first so the append does not read from the table it is writing to; serverless does not allow
 # cache/checkpoint, and a staging table is the clean way to break that dependency.
-stage_table = f"{catalog_name}.{user_schema}._seed_drift_stage"
+stage_table = f"{catalog_name}.{ml_schema}._seed_drift_stage"
 (
     spark.read.table(predictions_table)
     .limit(num_rows)

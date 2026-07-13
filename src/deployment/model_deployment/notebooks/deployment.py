@@ -22,12 +22,12 @@
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("catalog_name", "adoption_workshop")
-dbutils.widgets.text("user_schema", "")
+dbutils.widgets.text("ml_schema", "")
 
 model_name = dbutils.widgets.get("model_name")
 model_version = dbutils.widgets.get("model_version")
 catalog_name = dbutils.widgets.get("catalog_name")
-user_schema = dbutils.widgets.get("user_schema")
+ml_schema = dbutils.widgets.get("ml_schema")
 assert model_name and model_version, (
     "model_name and model_version are injected by the deployment job."
 )
@@ -36,15 +36,15 @@ from pyspark.sql import functions as F
 
 # Interactive fallback: jobs pass the resolved personal schema; running standalone derives
 # the same per-user name the bundle uses (dev_<short>_fraud) so runs stay isolated.
-if not user_schema:
+if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    user_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud"
 
-endpoint_name = f"{user_schema}_fraud"
+endpoint_name = f"{ml_schema}_fraud"
 online_store_name = "fraud-workshop-online"
-card_feature_table = f"{catalog_name}.{user_schema}.card_features"
-client_feature_table = f"{catalog_name}.{user_schema}.client_features"
+card_feature_table = f"{catalog_name}.{ml_schema}.card_features"
+client_feature_table = f"{catalog_name}.{ml_schema}.client_features"
 
 print(f"Deploying {model_name} v{model_version} -> endpoint {endpoint_name}")
 
@@ -139,7 +139,7 @@ served_entities = [
 ]
 inference_table = AiGatewayInferenceTableConfig(
     catalog_name=catalog_name,
-    schema_name=user_schema,
+    schema_name=ml_schema,
     table_name_prefix="fraud_serving",
     enabled=True,
 )

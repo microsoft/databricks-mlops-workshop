@@ -18,7 +18,7 @@ resources:
             base_parameters:
               catalog_name: ${var.catalog_name}
               gold_schema: ${var.gold_schema}
-              user_schema: ${var.user_schema}
+              ml_schema: ${var.ml_schema}
       # In production you'd run this on a schedule so the online inference table stays
       # fresh ahead of the monitor refresh. It's commented out for the workshop so nothing
       # auto-runs per attendee; the instructor triggers it on demand with

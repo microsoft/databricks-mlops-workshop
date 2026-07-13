@@ -21,7 +21,7 @@ resources:
               model_name: ${var.model_name}
               catalog_name: ${var.catalog_name}
               gold_schema: ${var.gold_schema}
-              user_schema: ${var.user_schema}
+              ml_schema: ${var.ml_schema}
               # Connect this model to its deployment job so registering a new version
               # auto-triggers the governed evaluate -> approve -> deploy pipeline. The
               # validation + serving that used to be separate tasks now live in that job.

@@ -25,30 +25,30 @@
 
 dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("gold_schema", "fraud_gold")
-dbutils.widgets.text("user_schema", "")
+dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_alias", "champion")
 
 catalog_name = dbutils.widgets.get("catalog_name")
 gold_schema = dbutils.widgets.get("gold_schema")
-user_schema = dbutils.widgets.get("user_schema")
+ml_schema = dbutils.widgets.get("ml_schema")
 
 from pyspark.sql import functions as F
 
 # Interactive fallback: jobs pass the resolved personal schema; running standalone derives
 # the same per-user name the bundle uses (dev_<short>_fraud) so runs stay isolated.
-if not user_schema:
+if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    user_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud"
 
 model_alias = dbutils.widgets.get("model_alias")
 # The batch-inference job passes the full three-level model name; fall back for interactive runs.
-model_name = dbutils.widgets.get("model_name") or f"{catalog_name}.{user_schema}.fraud_detection"
+model_name = dbutils.widgets.get("model_name") or f"{catalog_name}.{ml_schema}.fraud_detection"
 
 # Read the transactions to score from the shared gold source; write predictions to the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
-predictions_table = f"{catalog_name}.{user_schema}.fraud_predictions"
+predictions_table = f"{catalog_name}.{ml_schema}.fraud_predictions"
 
 print(f"Model:       {model_name}@{model_alias}")
 print(f"Score from:  {source_table}")

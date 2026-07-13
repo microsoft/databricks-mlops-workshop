@@ -16,18 +16,28 @@ variables:
     default: /Users/${workspace.current_user.userName}/${bundle.target}-mlops-workshop-fraud
   model_name:
     description: Unity Catalog registered model name (in the per-user workspace schema).
-    default: ${var.catalog_name}.${var.user_schema}.fraud_detection
+    default: ${var.catalog_name}.${var.ml_schema}.fraud_detection
   catalog_name:
     description: Unity Catalog catalog for the environment (dev/staging/prod).
     default: adoption_workshop
-  user_schema:
+  ml_schema:
     description: >-
-      Per-user ML outputs schema. Resolves to the user_workspace schema resource, so it
-      picks up development mode's prefix (base `fraud` -> `dev_<user>_fraud`).
-    default: ${resources.schemas.user_workspace.name}
+      ML outputs schema (feature tables, model, predictions, monitoring). Resolves to the
+      ml_workspace schema resource: development mode prefixes the base `fraud` to
+      `dev_<user>_fraud` (per-user); the clean dev/staging/prod targets use the shared `fraud`.
+    default: ${resources.schemas.ml_workspace.name}
   gold_schema:
     description: Shared, read-only gold schema holding the source consumption tables.
     default: fraud_gold
+  silver_schema:
+    description: Shared silver schema (cleaned, typed, joined). Used by the instructor ingestion job.
+    default: fraud_silver
+  bronze_schema:
+    description: Shared bronze schema (raw ingested tables). Used by the instructor ingestion job.
+    default: fraud_bronze
+  landing_schema:
+    description: Landing schema holding the raw_data volume of source files. Instructor ingestion job.
+    default: fraud_landing
   auto_approve:
     description: >-
       Whether the deployment job's Approval_Check auto-approves (dev) or requires a human
@@ -67,11 +77,11 @@ include:
 # landing volume). Declared ONLY on the clean (non-development) targets so that:
 #   * a `bundle deploy -t personal` (development mode) NEVER creates them. Attendees read
 #     the shared, instructor-seeded schemas and write only to their own
-#     `dev_<user>_fraud` (user_workspace). No empty per-user copies.
+#     `dev_<user>_fraud` (ml_workspace). No empty per-user copies.
 #   * a clean deploy (`-t dev` / `-t staging` / `-t prod`, no name-prefixing) provisions
 #     them literally as the shared `fraud_landing` / `fraud_bronze` / `fraud_silver` /
 #     `fraud_gold` + volume in that target's catalog.
-# `fraud_gold` is the shared source that everyone reads; the per-user `user_workspace`
+# `fraud_gold` is the shared source that everyone reads; the per-user `ml_workspace`
 # schema is separately named `fraud` (ML outputs), so there is no collision on the clean
 # targets.
 # These resources only create the empty schemas/volume; the actual data load

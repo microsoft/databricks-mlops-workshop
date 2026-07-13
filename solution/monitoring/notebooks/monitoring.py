@@ -24,22 +24,22 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "adoption_workshop")
-dbutils.widgets.text("user_schema", "")
+dbutils.widgets.text("ml_schema", "")
 
 catalog_name = dbutils.widgets.get("catalog_name")
-user_schema = dbutils.widgets.get("user_schema")
+ml_schema = dbutils.widgets.get("ml_schema")
 
 from pyspark.sql import functions as F
 
 # Interactive fallback: jobs pass the resolved personal schema; running standalone derives
 # the same per-user name the bundle uses (dev_<short>_fraud) so runs stay isolated.
-if not user_schema:
+if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    user_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud"
 
-batch_table = f"{catalog_name}.{user_schema}.fraud_predictions"
-online_table = f"{catalog_name}.{user_schema}.fraud_serving_inference"
+batch_table = f"{catalog_name}.{ml_schema}.fraud_predictions"
+online_table = f"{catalog_name}.{ml_schema}.fraud_serving_inference"
 
 print(f"Batch monitor table:  {batch_table}")
 print(f"Online monitor table: {online_table}")

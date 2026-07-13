@@ -60,4 +60,4 @@ resources:
             notebook_path: ../${var.code_root}/deployment/model_deployment/notebooks/deployment.py
             base_parameters:
               catalog_name: ${var.catalog_name}
-              user_schema: ${var.user_schema}
+              ml_schema: ${var.ml_schema}
