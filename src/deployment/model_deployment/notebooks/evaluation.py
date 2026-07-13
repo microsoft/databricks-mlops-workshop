@@ -62,9 +62,15 @@ if not model_version:
     from mlflow.tracking import MlflowClient
 
     mlflow.set_registry_uri("databricks-uc")
-    model_version = str(
-        max(int(mv.version) for mv in MlflowClient().search_model_versions(f"name='{uc_model_name}'"))
-    )
+    _versions = [
+        int(mv.version)
+        for mv in MlflowClient().search_model_versions(f"name='{uc_model_name}'")
+    ]
+    if not _versions:
+        raise ValueError(
+            f"No model versions found for {uc_model_name!r}. Provide model_version explicitly."
+        )
+    model_version = str(max(_versions))
 
 print(f"Evaluating {uc_model_name} version {model_version} on '{metric}' (floor {baseline}).")
 
