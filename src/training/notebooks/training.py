@@ -393,8 +393,12 @@ plt.show()
 client = MlflowClient()
 # Unity Catalog's search_model_versions only supports a `name='...'` filter (no run_id
 # filtering), so fetch this model's versions and take the highest: the one registered above.
-versions = client.search_model_versions(f"name='{uc_model_name}'")
-new_version = max(int(mv.version) for mv in versions)
+_versions = [int(mv.version) for mv in client.search_model_versions(f"name='{uc_model_name}'")]
+if not _versions:
+    raise ValueError(
+        f"No model versions found for {uc_model_name!r}. Was the model registered above?"
+    )
+new_version = max(_versions)
 client.set_registered_model_alias(uc_model_name, "challenger", new_version)
 print(f"Registered {uc_model_name} version {new_version} and set alias @challenger.")
 
