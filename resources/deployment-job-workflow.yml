@@ -35,6 +35,7 @@ resources:
             notebook_path: ../${var.code_root}/deployment/model_deployment/notebooks/evaluation.py
             base_parameters:
               catalog_name: ${var.catalog_name}
+              ml_schema: ${var.ml_schema}
               metric: roc_auc
               baseline: "0.65"
 
