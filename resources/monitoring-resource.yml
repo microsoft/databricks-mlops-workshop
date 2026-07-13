@@ -25,8 +25,8 @@ resources:
     # Batch path: the weekly fraud report. Labels are joined, so this monitor tracks
     # model quality (accuracy/precision/recall/f1) as well as drift.
     batch_monitor:
-      table_name: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_predictions
-      output_schema_name: ${var.catalog_name}.${resources.schemas.user_workspace.name}
+      table_name: ${var.catalog_name}.${resources.schemas.ml_workspace.name}.fraud_predictions
+      output_schema_name: ${var.catalog_name}.${resources.schemas.ml_workspace.name}
       assets_dir: /Workspace/Users/${workspace.current_user.userName}/lakehouse_monitoring
       inference_log:
         granularities: [1 day]
@@ -42,8 +42,8 @@ resources:
     # Online path: ad-hoc checks captured by the serving endpoint's AI Gateway inference
     # table, unpacked into the same shape. Labels lag, so this leads with drift.
     online_monitor:
-      table_name: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_serving_inference
-      output_schema_name: ${var.catalog_name}.${resources.schemas.user_workspace.name}
+      table_name: ${var.catalog_name}.${resources.schemas.ml_workspace.name}.fraud_serving_inference
+      output_schema_name: ${var.catalog_name}.${resources.schemas.ml_workspace.name}
       assets_dir: /Workspace/Users/${workspace.current_user.userName}/lakehouse_monitoring
       inference_log:
         granularities: [1 day]
@@ -68,7 +68,7 @@ resources:
           notebook_task:
             notebook_path: ../${var.code_root}/monitoring/notebooks/metric_violation_check.py
             base_parameters:
-              table_name_under_monitor: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_predictions
+              table_name_under_monitor: ${var.catalog_name}.${resources.schemas.ml_workspace.name}.fraud_predictions
               metric_to_monitor: f1_score.macro
               metric_violation_threshold: "0.20"
               num_evaluation_windows: "5"
@@ -88,7 +88,7 @@ resources:
           notebook_task:
             notebook_path: ../${var.code_root}/monitoring/notebooks/feature_drift_check.py
             base_parameters:
-              table_name_under_monitor: ${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_predictions
+              table_name_under_monitor: ${var.catalog_name}.${resources.schemas.ml_workspace.name}.fraud_predictions
               features_to_monitor: amount,credit_score,credit_limit,yearly_income,current_age,num_cards_issued,is_night,is_online,is_high_risk_mcc,amount_to_income_ratio,amount_to_credit_limit_ratio
               drift_metric: population_stability_index
               drift_violation_threshold: "0.20"

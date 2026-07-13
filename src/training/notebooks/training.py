@@ -23,28 +23,28 @@
 
 dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("gold_schema", "fraud_gold")
-dbutils.widgets.text("user_schema", "")
+dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("experiment_name", "")
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("deployment_job_id", "")
 
 catalog_name = dbutils.widgets.get("catalog_name")
 gold_schema = dbutils.widgets.get("gold_schema")
-user_schema = dbutils.widgets.get("user_schema")
+ml_schema = dbutils.widgets.get("ml_schema")
 
 from pyspark.sql import functions as F
 
 # Interactive fallback: jobs pass the resolved personal schema; running standalone derives
 # the same per-user name the bundle uses (dev_<short>_fraud) so runs stay isolated.
-if not user_schema:
+if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    user_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud"
 
 # Labels come from the shared gold table; features come from the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
-card_feature_table = f"{catalog_name}.{user_schema}.card_features"
-client_feature_table = f"{catalog_name}.{user_schema}.client_features"
+card_feature_table = f"{catalog_name}.{ml_schema}.card_features"
+client_feature_table = f"{catalog_name}.{ml_schema}.client_features"
 
 # Sensible defaults so the notebook is runnable interactively (outside the DAB job),
 # where the experiment/model widgets may be empty.
@@ -52,7 +52,7 @@ current_user = spark.range(1).select(F.current_user()).first()[0]
 experiment_name = (
     dbutils.widgets.get("experiment_name") or f"/Users/{current_user}/mlops-workshop-fraud"
 )
-model_name = dbutils.widgets.get("model_name") or f"{catalog_name}.{user_schema}.fraud_detection"
+model_name = dbutils.widgets.get("model_name") or f"{catalog_name}.{ml_schema}.fraud_detection"
 
 print(f"Card features:   {card_feature_table}")
 print(f"Client features: {client_feature_table}")
@@ -131,7 +131,7 @@ else:
 
 # COMMAND ----------
 
-schema_fqn = f"{catalog_name}.{user_schema}"
+schema_fqn = f"{catalog_name}.{ml_schema}"
 
 # Cap the training data at a random sample so the notebook runs in a couple of minutes.
 # Fraud is extremely rare, so a random sample (not the first N rows) is what keeps enough

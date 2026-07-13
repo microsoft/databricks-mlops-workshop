@@ -13,9 +13,9 @@ resources:
             notebook_path: ../${var.code_root}/data_ingestion/notebooks/load_landing_to_bronze.py
             base_parameters:
               catalog: ${var.catalog_name}
-              bronze_schema: fraud_bronze
+              bronze_schema: ${var.bronze_schema}
               landing_catalog: ${var.catalog_name}
-              landing_schema: fraud_landing
+              landing_schema: ${var.landing_schema}
               landing_volume: raw_data
         - task_key: bronze_to_silver
           depends_on:
@@ -24,9 +24,9 @@ resources:
             notebook_path: ../${var.code_root}/data_ingestion/notebooks/load_bronze_to_silver.py
             base_parameters:
               catalog: ${var.catalog_name}
-              bronze_schema: fraud_bronze
-              silver_schema: fraud_silver
-              gold_schema: fraud_gold
+              bronze_schema: ${var.bronze_schema}
+              silver_schema: ${var.silver_schema}
+              gold_schema: ${var.gold_schema}
       # In production the medallion pipeline runs on a schedule (or a file-arrival trigger)
       # so bronze/silver/gold stay fresh as new transactions land. It's commented out for
       # the workshop, where the shared data is seeded once against the clean `dev` target

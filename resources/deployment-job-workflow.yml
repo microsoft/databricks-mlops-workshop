@@ -34,6 +34,7 @@ resources:
           notebook_task:
             notebook_path: ../${var.code_root}/deployment/model_deployment/notebooks/evaluation.py
             base_parameters:
+              catalog_name: ${var.catalog_name}
               metric: roc_auc
               baseline: "0.65"
 
@@ -57,3 +58,6 @@ resources:
           existing_cluster_id: ${var.shared_cluster_id}
           notebook_task:
             notebook_path: ../${var.code_root}/deployment/model_deployment/notebooks/deployment.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              ml_schema: ${var.ml_schema}

@@ -436,7 +436,7 @@ The bundle declares the schema with a **base name** in [resources/schemas-resour
 ```yaml
 resources:
   schemas:
-    user_workspace:
+    ml_workspace:
       catalog_name: ${var.catalog_name}
       name: fraud
 ```
@@ -451,17 +451,17 @@ what the bundle created:
 
 ```yaml
 base_parameters:
-  gold_schema: ${var.gold_schema}                      # shared read  -> fraud_gold
-  user_schema: ${resources.schemas.user_workspace.name} # personal write -> dev_<you>_fraud
+  gold_schema: ${var.gold_schema}                      # shared read    -> fraud_gold
+  ml_schema: ${resources.schemas.ml_workspace.name}    # personal write -> dev_<you>_fraud
 ```
 
 and the model name follows the same schema:
-`${var.catalog_name}.${resources.schemas.user_workspace.name}.fraud_detection`.
+`${var.catalog_name}.${resources.schemas.ml_workspace.name}.fraud_detection`.
 
 > **Why reference the resource, not a plain variable?** Development mode prefixes the schema
 > *resource* but not a hand-written variable, so a variable like `${short_name}_fraud` would
 > not match the schema the bundle actually creates. Referencing
-> `${resources.schemas.user_workspace.name}` guarantees notebooks and the provisioned schema
+> `${resources.schemas.ml_workspace.name}` guarantees notebooks and the provisioned schema
 > use the identical name.
 
 ### Attendee flow

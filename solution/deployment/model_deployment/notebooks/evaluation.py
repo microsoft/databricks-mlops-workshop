@@ -24,11 +24,13 @@
 # The deployment job injects model_name + model_version as JOB-level parameters.
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")
+dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("metric", "roc_auc")
 dbutils.widgets.text("baseline", "0.65")
 
 model_name = dbutils.widgets.get("model_name")
 model_version = dbutils.widgets.get("model_version")
+catalog_name = dbutils.widgets.get("catalog_name")
 metric = dbutils.widgets.get("metric")
 baseline = float(dbutils.widgets.get("baseline"))
 
@@ -54,7 +56,6 @@ fe = FeatureEngineeringClient()
 # lookups + on-demand functions recorded at training, and the served model returns a fraud
 # probability, so a real ROC AUC can be computed. In production this holdout would be a
 # curated, leakage-controlled evaluation table; here it is sampled from the shared gold source.
-catalog_name = model_name.split(".")[0]
 gold_table = f"{catalog_name}.fraud_gold.transactions_enriched"
 
 eval_spine = (
