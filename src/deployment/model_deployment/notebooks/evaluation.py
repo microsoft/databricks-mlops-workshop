@@ -7,7 +7,7 @@
 # MAGIC This is the first task of the **MLflow 3 deployment job**. A deployment job is a
 # MAGIC Lakeflow Job that is **connected to a Unity Catalog registered model** and
 # MAGIC **auto-triggers on every new model version** (Databricks injects the job-level
-# MAGIC parameters `uc_model_name` and `model_version`). The three tasks are:
+# MAGIC parameters `model_name` and `model_version`). The three tasks are:
 # MAGIC
 # MAGIC 1. **Evaluation** (this notebook): score the new version and record its metrics on
 # MAGIC    the model-version page so an approver can decide.

@@ -53,7 +53,10 @@ experiment_name = (
     dbutils.widgets.get("experiment_name") or f"/Users/{current_user}/mlops-workshop-fraud"
 )
 model_name = dbutils.widgets.get("model_name")
-uc_model_name = f"{catalog_name}.{ml_schema}.{model_name}"
+# Accept either a bare name (prepend catalog + ml_schema) or an already-qualified 3-level name.
+uc_model_name = (
+    model_name if model_name.count(".") == 2 else f"{catalog_name}.{ml_schema}.{model_name}"
+)
 
 print(f"Card features:   {card_feature_table}")
 print(f"Client features: {client_feature_table}")

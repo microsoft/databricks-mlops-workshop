@@ -44,8 +44,10 @@ if not ml_schema:
 
 model_alias = dbutils.widgets.get("model_alias")
 model_name = dbutils.widgets.get("model_name")
-# Prepend catalog + ml_schema to the bare model name to form the three-level UC name.
-uc_model_name = f"{catalog_name}.{ml_schema}.{model_name}"
+# Accept either a bare name (prepend catalog + ml_schema) or an already-qualified 3-level name.
+uc_model_name = (
+    model_name if model_name.count(".") == 2 else f"{catalog_name}.{ml_schema}.{model_name}"
+)
 
 # Read the transactions to score from the shared gold source; write predictions to the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
