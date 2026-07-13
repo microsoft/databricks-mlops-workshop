@@ -69,7 +69,7 @@ print(f"Online (out):  {online_table}")
 
 # Unpack the AI Gateway payload table into one row per prediction. This is heavy Spark
 # plumbing (guarding the delivery lag, from_json, explode), so it is provided; the label
-# join and write at the end are the step you fill in.
+# join and write at the end are the exercise.
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
@@ -166,17 +166,18 @@ except Exception as exc:
 
 # MAGIC %md
 # MAGIC ## 3. Best-effort label join and persist
-# MAGIC Attach the confirmed label where we already have it (null otherwise, online labels
-# MAGIC lag), then overwrite the online inference table. Same schema as the batch
-# MAGIC `fraud_predictions` table, so both monitors line up.
+# MAGIC
+# MAGIC Attach the confirmed label where available (null otherwise, online labels lag), then
+# MAGIC overwrite the online inference table. Same schema as the batch `fraud_predictions`
+# MAGIC table, so both monitors line up.
 
 # COMMAND ----------
 
 # Attach the confirmed label AND the same feature columns as the batch fraud_predictions
 # table, so the two monitors are symmetric and track drift on every model feature. The serving
-# payload only logs raw inputs, so we resolve the features the model used, by transaction_id,
+# payload only logs raw inputs, so the features the model used are resolved by transaction_id
 # from the gold source: entity features are columns, and the on-demand features are computed
-# with the SAME UC functions the model uses (no train/serve skew). The join is provided.
+# with the same UC functions the model uses (no train/serve skew). The join is provided.
 schema_fqn = f"{catalog_name}.{user_schema}"
 gold_raw = spark.read.table(gold_table).select(
     "transaction_id",
@@ -237,7 +238,7 @@ print(f"Wrote {online.count():,} rows to {online_table}")
 
 # MAGIC %md
 # MAGIC ## Recap
-# MAGIC - The AI Gateway captured online traffic automatically; we only reshaped it.
+# MAGIC - The AI Gateway captured online traffic automatically; this notebook only reshaped it.
 # MAGIC - `transaction_id` came from the `client_request_id` correlation id the caller set:
 # MAGIC   the clean way to join model outputs back to confirmed-fraud labels later.
 # MAGIC - `fraud_serving_inference` now matches the batch `fraud_predictions` schema, so the

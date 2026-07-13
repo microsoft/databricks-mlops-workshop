@@ -41,7 +41,7 @@ if not user_schema:
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
     user_schema = f"dev_{_short}_fraud"
 
-# Labels come from the shared gold table; features come from your personal schema.
+# Labels come from the shared gold table; features come from the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
 card_feature_table = f"{catalog_name}.{user_schema}.card_features"
 client_feature_table = f"{catalog_name}.{user_schema}.client_features"
@@ -155,9 +155,9 @@ spine = (
     .limit(SAMPLE_ROWS)
 )
 
-# The on-demand feature functions are provided (they mirror the UC UDFs you registered in
-# the feature engineering notebook). You add the two entity FeatureLookups and assemble the
-# training set.
+# The on-demand feature functions are provided (they mirror the UC UDFs registered in the
+# feature engineering notebook). Adding the two entity FeatureLookups and assembling the
+# training set is the exercise.
 feature_functions = [
     FeatureFunction(
         udf_name=f"{schema_fqn}.ff_is_night",
@@ -266,13 +266,13 @@ with mlflow.start_run(run_name="rf_imbalanced"):
     naive_metrics = evaluate(naive, X_test, y_test)
     mlflow.log_params({**naive_params, "training_data": "imbalanced"})
     mlflow.log_metrics(naive_metrics)
-    print("rf_imbalanced:", naive_metrics)  # high accuracy, but look at recall
+    print("rf_imbalanced:", naive_metrics)  # high accuracy, low recall
 
-# Fixed random forest: the model we track and register.
+# Fixed random forest: the model that is tracked and registered.
 with mlflow.start_run(run_name="rf_balanced") as run:
     # Balance the training rows: keep every fraud row and randomly sample an equal number of
-    # non-fraud rows (provided: this is a data-science fix, not the MLOps concept). We still
-    # evaluate on the untouched, imbalanced X_test/y_test so metrics reflect reality.
+    # non-fraud rows (provided: this is a data-science fix, not the MLOps concept). Evaluation
+    # still uses the untouched, imbalanced X_test/y_test so metrics reflect reality.
     fraud_idx = y_train[y_train == 1].index
     legit_idx = y_train[y_train == 0].sample(n=len(fraud_idx), random_state=42).index
     bal_idx = fraud_idx.union(legit_idx)
@@ -292,8 +292,8 @@ with mlflow.start_run(run_name="rf_balanced") as run:
     mlflow.log_metrics(metrics)
 
     # Package with feature metadata + an inferred signature/input example (required for
-    # safe serving) and register to Unity Catalog in one call. We wrap the classifier so the
-    # served model returns a fraud PROBABILITY (score), not a hard class.
+    # safe serving) and register to Unity Catalog in one call. The classifier is wrapped so
+    # the served model returns a fraud probability (score), not a hard class.
     # TODO: log and register the model to Unity Catalog with its feature metadata
     # HINT: fe.log_model packages the model with the training_set's feature lookups (so serving
     # HINT:   reproduces the same features) and registers it to UC in a single call.
@@ -388,8 +388,7 @@ plt.show()
 
 client = MlflowClient()
 # Unity Catalog's search_model_versions only supports a `name='...'` filter (no run_id
-# filtering), so fetch this model's versions and take the highest: the one we just
-# registered above.
+# filtering), so fetch this model's versions and take the highest: the one registered above.
 versions = client.search_model_versions(f"name='{model_name}'")
 new_version = max(int(mv.version) for mv in versions)
 client.set_registered_model_alias(model_name, "challenger", new_version)

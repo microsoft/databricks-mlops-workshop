@@ -5,7 +5,7 @@
 # MAGIC **Session:** Model Development & Experimentation
 # MAGIC
 # MAGIC Real-time scoring has to work for a brand-new transaction that isn't in any table
-# MAGIC yet, so we split features the way production systems do:
+# MAGIC yet, so features are split the way production systems do:
 # MAGIC
 # MAGIC 1. **Entity features:** slow-changing card and client attributes, looked up by key at
 # MAGIC    serving time. Published to the Unity Catalog Feature Store:
@@ -41,7 +41,7 @@ if not user_schema:
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
     user_schema = f"dev_{_short}_fraud"
 
-# Read from the shared gold source; write to your personal schema.
+# Read from the shared gold source; write to the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
 card_feature_table = f"{catalog_name}.{user_schema}.card_features"
 client_feature_table = f"{catalog_name}.{user_schema}.client_features"
@@ -69,13 +69,12 @@ enriched = spark.read.table(source_table)
 # COMMAND ----------
 
 # One row per entity (deduplicated), keyed by card_id / client_id. This is plain Spark
-# aggregation, so it is provided; publishing these to the Feature Store below is the step
-# you fill in.
-# For simplicity we take the card/client attributes from the single transactions_enriched
-# table, picking one value per entity with F.first. In the real world we would read them
-# from the entity dimension itself (the cards / users tables), because these attribute
-# values can change over time, so a per-transaction snapshot is arbitrary and the dimension
-# is the source of truth.
+# aggregation and is provided; publishing these to the Feature Store below is the exercise.
+# For simplicity the card/client attributes come from the single transactions_enriched
+# table, taking one value per entity with F.first. In production they would come from the
+# entity dimension itself (the cards / users tables), because these attribute values can
+# change over time, so a per-transaction snapshot is arbitrary and the dimension is the
+# source of truth.
 card_features = enriched.groupBy("card_id").agg(
     F.first("credit_limit", ignorenulls=True).cast("double").alias("credit_limit"),
     F.first("num_cards_issued", ignorenulls=True).cast("int").alias("num_cards_issued"),
@@ -139,8 +138,8 @@ publish(
 # COMMAND ----------
 
 # On-demand feature functions are UC Python UDFs. Training and serving call the same
-# functions, so there is no train/serve skew. Four of them are provided; you write the first
-# one (ff_is_night) to learn the pattern.
+# functions, so there is no train/serve skew. Four are provided; the first (ff_is_night) is
+# the exercise.
 schema_fqn = f"{catalog_name}.{user_schema}"
 
 # TODO-BEGIN: register the ff_is_night on-demand feature function as a UC Python UDF

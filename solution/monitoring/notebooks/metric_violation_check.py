@@ -45,7 +45,7 @@ dbutils.widgets.text("num_violation_windows", "2", label="Windows that must viol
 # MAGIC Lakehouse Monitoring writes a `<table>_profile_metrics` Delta table. For an
 # MAGIC InferenceLog monitor with a `label_col`, that table holds model-quality metrics
 # MAGIC (accuracy, precision, recall, f1, ...) computed per time `window`, per
-# MAGIC `model_version`, and per `slice`. We look at the whole-table rows for the real model
+# MAGIC `model_version`, and per `slice`. It reads the whole-table rows for the real model
 # MAGIC versions and ask: of the last `num_evaluation_windows` windows, did at least
 # MAGIC `num_violation_windows` fall **below** the quality threshold, and is the most recent
 # MAGIC window also below it?
@@ -107,8 +107,8 @@ recent_metrics = (
 )
 
 # Violation: at least num_violation_windows of those windows are below the threshold and the
-# most recent window is also below it (so we don't retrain on a dip that has already
-# recovered). Fraud quality is "higher is better"; for a drift/error metric flip < to >.
+# most recent window is also below it (so a recovered dip does not trigger retraining).
+# Fraud quality is "higher is better"; for a drift/error metric flip < to >.
 windows_in_violation = sum(1 for row in recent_metrics if row["metric_value"] < metric_violation_threshold)
 latest_in_violation = bool(recent_metrics) and recent_metrics[0]["metric_value"] < metric_violation_threshold
 is_metric_violated = windows_in_violation >= num_violation_windows and latest_in_violation

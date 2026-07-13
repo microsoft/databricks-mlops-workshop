@@ -55,9 +55,9 @@ print(f"Online monitor table: {online_table}")
 
 # COMMAND ----------
 
-# A Lakehouse Monitor recomputes its profile and drift metrics on refresh. The bundle
-# created the monitors on a schedule; here we refresh on demand so the metric tables reflect
-# the rows we just scored. The client and the guard loop are provided.
+# A Lakehouse Monitor recomputes its profile and drift metrics on refresh. The monitors run
+# on a schedule; here they are refreshed on demand so the metric tables reflect the rows just
+# scored. The client and the guard loop are provided.
 from databricks.sdk import WorkspaceClient
 
 w = WorkspaceClient()
@@ -87,10 +87,9 @@ for table in [batch_table, online_table]:
 
 # COMMAND ----------
 
-# The monitor writes a _profile_metrics table with model-quality metrics per time window.
-# The point is that monitoring produces a queryable metrics table you can trend and alert on.
-# Classification metrics are STRUCTs, so we dereference the fields (f1_score.macro etc.) with
-# F.col.
+# The monitor writes a _profile_metrics table with model-quality metrics per time window,
+# a queryable table for trending and alerting. Classification metrics are STRUCTs, so the
+# fields (f1_score.macro etc.) are dereferenced with F.col.
 from pyspark.sql import functions as F
 
 profile_metrics = f"{batch_table}_profile_metrics"

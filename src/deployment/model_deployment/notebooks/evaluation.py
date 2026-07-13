@@ -52,8 +52,8 @@ fe = FeatureEngineeringClient()
 # Independent evaluation: score the REGISTERED artifact on a fresh, labelled holdout rather
 # than trusting the metrics training self-reported. fe.score_batch replays the exact feature
 # lookups + on-demand functions recorded at training, and the served model returns a fraud
-# probability, so we can compute a real ROC AUC. (In production this holdout would be a
-# curated, leakage-controlled evaluation table; here we sample the shared gold source.)
+# probability, so a real ROC AUC can be computed. In production this holdout would be a
+# curated, leakage-controlled evaluation table; here it is sampled from the shared gold source.
 catalog_name = model_name.split(".")[0]
 gold_table = f"{catalog_name}.fraud_gold.transactions_enriched"
 

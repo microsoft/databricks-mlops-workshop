@@ -46,7 +46,7 @@ model_alias = dbutils.widgets.get("model_alias")
 # The batch-inference job passes the full three-level model name; fall back for interactive runs.
 model_name = dbutils.widgets.get("model_name") or f"{catalog_name}.{user_schema}.fraud_detection"
 
-# Read the transactions to score from the shared gold source; write predictions to your schema.
+# Read the transactions to score from the shared gold source; write predictions to the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
 predictions_table = f"{catalog_name}.{user_schema}.fraud_predictions"
 
@@ -74,8 +74,8 @@ os.environ["_MLFLOW_SPARK_UDF_SERVERLESS_SKIP_DBCONNECT_ARTIFACT"] = "true"
 mlflow.set_registry_uri("databricks-uc")
 fe = FeatureEngineeringClient()
 
-# Resolve the champion alias to a concrete version so we can stamp every scored row with
-# the model version that produced it (the monitor's model_id_col groups metrics by this).
+# Resolve the champion alias to a concrete version, to stamp every scored row with the model
+# version that produced it (the monitor's model_id_col groups metrics by this).
 client = MlflowClient()
 champion = client.get_model_version_by_alias(model_name, model_alias)
 model_version = str(champion.version)
@@ -88,15 +88,14 @@ print(f"{model_alias} -> version {model_version}")
 # MAGIC In production this would be the newly-arrived, not-yet-scored transactions. Build the
 # MAGIC same request spine the model was trained on: the raw transaction keys and fields
 # MAGIC (`card_id`, `client_id`, `amount`, `transaction_hour`, `mcc`, `use_chip`). The Feature
-# MAGIC Store looks up the card/client entity features and runs the on-demand functions, so we
-# MAGIC pass exactly what a live caller would send. `amount` is cast to double to match the
+# MAGIC Store looks up the card/client entity features and runs the on-demand functions, so
+# MAGIC the input matches what a live caller would send. `amount` is cast to double to match the
 # MAGIC feature tables and the on-demand function signatures (no train/serve skew).
 
 # COMMAND ----------
 
 # The request spine mirrors the training spine (raw transaction keys and fields, no label).
-# Building it is plain Spark, so it is provided; scoring with the champion is the step you
-# fill in below.
+# Building it is plain Spark and is provided; scoring with the champion is the exercise below.
 to_score = (
     spark.read.table(source_table)
     .select(
@@ -137,8 +136,8 @@ print(f"Scoring {to_score.count():,} transactions")
 # MAGIC Then append.
 # MAGIC
 # MAGIC > The label (`is_fraud`) is joined here for the workshop so quality metrics compute
-# MAGIC > immediately. In the real world fraud is confirmed later (chargebacks), so you would
-# MAGIC > backfill the label into this table when it arrives; drift is watched in the meantime.
+# MAGIC > immediately. In the real world fraud is confirmed later (chargebacks), so the label
+# MAGIC > would be backfilled into this table when it arrives; drift is tracked in the meantime.
 
 # COMMAND ----------
 
@@ -151,9 +150,9 @@ labels = spark.read.table(source_table).select(
 )
 
 # fe.score_batch already returns the looked-up entity features (credit_score, credit_limit,
-# yearly_income, current_age) plus the input `amount`, so we log those columns straight from
-# `scored`. Logging them is what makes FEATURE (data) drift monitorable downstream. (Re-joining
-# them from the source would duplicate the columns and make the reference ambiguous.)
+# yearly_income, current_age) plus the input `amount`, so those columns are logged straight
+# from `scored`. Logging them is what makes feature (data) drift monitorable downstream.
+# (Re-joining them from the source would duplicate the columns and make the reference ambiguous.)
 
 scored_at = F.to_timestamp(
     F.date_sub(F.current_date(), (F.col("transaction_id") % F.lit(14)).cast("int"))

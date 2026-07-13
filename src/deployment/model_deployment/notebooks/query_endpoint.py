@@ -125,4 +125,4 @@ for tid, pred in results[:5]:
 # MAGIC - Every call carried `client_request_id` = transaction id, the correlation key the
 # MAGIC   AI Gateway logs so `process_serving_logs` can join labels for the online monitor.
 # MAGIC - AI Gateway delivery lags (up to ~1 hour), so these calls appear in the inference
-# MAGIC   table a little after you run this.
+# MAGIC   table shortly after this runs.

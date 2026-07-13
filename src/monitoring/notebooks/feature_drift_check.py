@@ -26,7 +26,7 @@
 # MAGIC - `drift_violation_threshold`: drift is a "higher is worse" metric, so a value **above**
 # MAGIC   this counts as a violation.
 # MAGIC - `num_evaluation_windows` / `num_violation_windows`: how many recent windows to look at,
-# MAGIC   and how many must be in violation before we act.
+# MAGIC   and how many must be in violation before action is taken.
 # MAGIC
 # MAGIC Note on acting on feature drift: retraining only helps once fresh labels arrive, so in
 # MAGIC production feature drift typically raises an alert first, and the label-based quality
@@ -60,7 +60,7 @@ dbutils.widgets.text("num_violation_windows", "1", label="Windows that must viol
 # MAGIC ## The violation query
 # MAGIC
 # MAGIC Lakehouse Monitoring writes a `<table>_drift_metrics` Delta table with one row per
-# MAGIC column, per time `window`, per drift comparison. For each monitored feature we look at
+# MAGIC column, per time `window`, per drift comparison. For each monitored feature, it checks
 # MAGIC the whole-population rows and ask: of the last `num_evaluation_windows` windows, did at
 # MAGIC least `num_violation_windows` have `drift_metric` **above** `drift_violation_threshold`,
 # MAGIC and is the most recent window also above it?
@@ -68,11 +68,11 @@ dbutils.widgets.text("num_violation_windows", "1", label="Windows that must viol
 # MAGIC The row filters mean:
 # MAGIC - `column_name` is one of the monitored features (not `:table`),
 # MAGIC - `slice_key IS NULL` -> the whole population, not a single data slice,
-# MAGIC - `drift_type = "CONSECUTIVE"` -> window-over-window drift (we have no baseline table; a
+# MAGIC - `drift_type = "CONSECUTIVE"` -> window-over-window drift (there is no baseline table; a
 # MAGIC   baseline-vs-training comparison would use `drift_type = "BASELINE"`).
 # MAGIC
 # MAGIC The table can carry more than one row per window (one per `model_version` plus a `*`
-# MAGIC aggregate), so we take the max metric per window to get one value each.
+# MAGIC aggregate), so the max metric per window is used to get one value each.
 # MAGIC
 # MAGIC `population_stability_index` (PSI) measures how far a feature's distribution has moved
 # MAGIC between the previous window and the current one: both windows are cut into the same
@@ -80,10 +80,10 @@ dbutils.widgets.text("num_violation_windows", "1", label="Windows that must viol
 # MAGIC two distributions match and grows as they pull apart, so "higher is worse". A common
 # MAGIC reading is >0.1 a moderate shift and >0.25 a significant shift.
 # MAGIC
-# MAGIC We threshold PSI (not `js_distance`) because Lakehouse Monitoring leaves `js_distance`
+# MAGIC PSI is thresholded (not `js_distance`) because Lakehouse Monitoring leaves `js_distance`
 # MAGIC null for numeric columns and only fills it for categoricals, so PSI is the drift knob
 # MAGIC that actually fires on numeric features like `amount`. If **any** monitored feature is
-# MAGIC in violation, we flag `is_drift_violated`.
+# MAGIC in violation, `is_drift_violated` is set.
 
 # COMMAND ----------
 
@@ -129,8 +129,8 @@ for feature in features_to_monitor:
     if not recent:
         continue
     # Violation: at least num_violation_windows above the threshold AND the most recent window
-    # is also above it (so we don't act on a spike that has already settled). Drift is "higher
-    # is worse", so we compare with >.
+    # is also above it (so a spike that has already settled is ignored). Drift is "higher is
+    # worse", so the comparison uses >.
     windows_in_violation = sum(1 for row in recent if row["metric_value"] > drift_violation_threshold)
     latest_in_violation = recent[0]["metric_value"] > drift_violation_threshold
     if windows_in_violation >= num_violation_windows and latest_in_violation:

@@ -226,7 +226,7 @@ logger.info("Written %s", fraud_labels_fqn)
 # COMMAND ----------
 
 # Governance: table-level comments so the raw layer is self-documenting. Bronze keeps
-# source fidelity, so we do not comment individual columns here (that happens in silver).
+# source fidelity, so individual columns are not commented here; that happens in silver.
 bronze_table_comments = {
     transactions_fqn: "Bronze: raw card transactions ingested as-is from the landing volume, plus audit columns.",
     cards_fqn: "Bronze: raw card metadata ingested as-is from the landing volume, plus audit columns.",

@@ -44,8 +44,8 @@ from mlflow import MlflowClient
 
 client = MlflowClient(registry_uri="databricks-uc")
 
-# In dev we auto-approve: set the tag so this run (and the UI) reflect an approved state,
-# then pass. In staging/prod we require a human to have set the tag to "Approved".
+# In dev, auto-approve: set the tag so this run (and the UI) reflect an approved state, then
+# pass. In staging/prod, a human must have set the tag to "Approved".
 if auto_approve:
     client.set_model_version_tag(model_name, model_version, tag_name, "Approved")
     print(f"Auto-approved (dev): set {tag_name}=Approved on v{model_version}.")
