@@ -59,9 +59,12 @@ enriched = spark.read.table(source_table)
 
 # MAGIC %md
 # MAGIC ## 1. Build the entity feature tables
-# MAGIC Slow-changing card and client attributes that exist before a transaction happens and
-# MAGIC can be looked up by key. One row per entity (deduplicated), keyed by `card_id` /
-# MAGIC `client_id`.
+# MAGIC
+# MAGIC Slow-changing card and client attributes that exist before a transaction happens, so
+# MAGIC they can be looked up by key at serve time:
+# MAGIC
+# MAGIC - `card_features`, one row per `card_id`: credit limit, cards issued.
+# MAGIC - `client_features`, one row per `client_id`: credit score, income, age.
 
 # COMMAND ----------
 
@@ -88,10 +91,14 @@ client_features = enriched.groupBy("client_id").agg(
 
 # MAGIC %md
 # MAGIC ## 2. Publish the entity feature tables
-# MAGIC Write them to the Feature Store as primary-key tables so they can be looked up at
-# MAGIC training time and (after publishing to an online store) at serving time. Create on
-# MAGIC first run, merge on re-runs. Change Data Feed is enabled so the tables can sync to an
-# MAGIC online store later.
+# MAGIC
+# MAGIC Write them to the Feature Store as primary-key tables so they can be resolved by key:
+# MAGIC
+# MAGIC - at training time (offline join), and
+# MAGIC - at serving time, once published to an online store.
+# MAGIC
+# MAGIC Create on the first run, merge on re-runs. Change Data Feed is enabled so the tables can
+# MAGIC sync to an online store later.
 
 # COMMAND ----------
 
@@ -107,9 +114,12 @@ client_features = enriched.groupBy("client_id").agg(
 
 # MAGIC %md
 # MAGIC ## 3. Register the on-demand feature functions
+# MAGIC
 # MAGIC UC feature functions (Python UDFs) that compute transaction-derived features from the
-# MAGIC request payload at lookup/serving time, so they work for a transaction never seen
-# MAGIC before. Training and serving call the same functions (no skew).
+# MAGIC request payload itself, so:
+# MAGIC
+# MAGIC - they work for a transaction never seen before (nothing to look up);
+# MAGIC - training and serving call the same functions, so there is no skew.
 
 # COMMAND ----------
 
@@ -173,8 +183,9 @@ $$
 
 # MAGIC %md
 # MAGIC ## 4. Document the feature tables (governance)
+# MAGIC
 # MAGIC Add column comments so the tables are self-describing in Catalog Explorer.
-# MAGIC (Instructor-provided, not part of the exercise.)
+# MAGIC Instructor-provided, not part of the exercise.
 
 # COMMAND ----------
 

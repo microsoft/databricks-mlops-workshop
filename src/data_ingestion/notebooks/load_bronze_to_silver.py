@@ -1,10 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Bronze -> Silver
-# MAGIC Clean, type, dedupe and join the Bronze tables into conformed Silver tables,
-# MAGIC including the enriched transaction table used for feature engineering.
 # MAGIC
-# MAGIC **Setup notebook** run by the instructor before the workshop. Not a lab exercise.
+# MAGIC Instructor setup notebook, run before the workshop. Not a lab exercise.
+# MAGIC
+# MAGIC Turns the Bronze tables into conformed Silver tables (and the enriched Gold
+# MAGIC transaction table that feature engineering reads) by:
+# MAGIC
+# MAGIC - cleaning and casting columns to their real types;
+# MAGIC - deduplicating to one row per entity;
+# MAGIC - joining the sources into a single labelled transaction table.
 # MAGIC
 # MAGIC | Layer | Location |
 # MAGIC |---|---|
@@ -59,9 +64,10 @@ logger.info(
 
 # MAGIC %md
 # MAGIC ## Target schemas
-# MAGIC The shared `fraud_silver` / `fraud_gold` schemas are declared as bundle resources
-# MAGIC (the `shared_infra` block in `databricks.yml`) and created by
-# MAGIC `databricks bundle deploy -t dev` before this job runs.
+# MAGIC
+# MAGIC - The `fraud_silver` / `fraud_gold` schemas are declared as bundle resources (the
+# MAGIC   `shared_infra` block in `databricks.yml`).
+# MAGIC - `databricks bundle deploy -t dev` creates them before this job runs.
 
 # COMMAND ----------
 

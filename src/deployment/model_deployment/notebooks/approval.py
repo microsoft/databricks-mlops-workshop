@@ -9,7 +9,7 @@
 # MAGIC as the signal (the mechanism MLflow 3 deployment jobs use):
 # MAGIC
 # MAGIC - **dev** (`auto_approve=true`): the task sets the approval tag itself and passes, so
-# MAGIC   the whole loop runs unattended in class.
+# MAGIC   the whole loop runs unattended.
 # MAGIC - **staging / prod** (`auto_approve=false`): the task fails until a human reviews the
 # MAGIC   evaluation metrics on the model-version page and clicks **Approve** (which sets the
 # MAGIC   tag `<task-name>=Approved` and repairs the run). The task then passes and the run

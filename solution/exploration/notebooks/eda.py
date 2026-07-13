@@ -2,16 +2,16 @@
 # MAGIC %md
 # MAGIC # Exploratory data analysis: fraud transactions
 # MAGIC
-# MAGIC A quick look at the data before the ML labs, so you understand what you are modelling.
-# MAGIC We read the shared gold table `transactions_enriched` (transaction, card, user and
-# MAGIC merchant-category attributes already joined) and answer four questions:
+# MAGIC A short look at the data before the ML labs. It reads the shared gold table
+# MAGIC `transactions_enriched` (transaction, card, user, and merchant-category attributes
+# MAGIC already joined) and answers four questions:
 # MAGIC
-# MAGIC 1. How much data is there and what does a row look like?
-# MAGIC 2. How rare is fraud? (the class imbalance that drives everything later)
+# MAGIC 1. How much data is there, and what does a row look like?
+# MAGIC 2. How rare is fraud (the class imbalance that drives the modelling choices)?
 # MAGIC 3. What do the numeric features look like?
-# MAGIC 4. Does fraud behave differently (by amount, time of day, category)?
+# MAGIC 4. Does fraud behave differently by amount, time of day, or category?
 # MAGIC
-# MAGIC This notebook only reads data. It writes nothing, so it is safe to run any time.
+# MAGIC This notebook only reads data. It writes nothing, so it is safe to run at any time.
 
 # COMMAND ----------
 

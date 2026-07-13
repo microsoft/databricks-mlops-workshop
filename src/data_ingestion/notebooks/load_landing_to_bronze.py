@@ -1,10 +1,14 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Landing -> Bronze
-# MAGIC Ingest the raw fraud source files from the landing volume into Bronze Delta
-# MAGIC tables, applying explicit schemas and audit columns. Minimal transformation.
 # MAGIC
-# MAGIC **Setup notebook** run by the instructor before the workshop. Not a lab exercise.
+# MAGIC Instructor setup notebook, run before the workshop. Not a lab exercise.
+# MAGIC
+# MAGIC Reads the raw fraud source files from the landing volume into Bronze Delta tables:
+# MAGIC
+# MAGIC - explicit schemas, no inference;
+# MAGIC - audit columns (ingest timestamp, ingest date, source file);
+# MAGIC - minimal transformation, so the shape stays close to the source.
 # MAGIC
 # MAGIC | Layer | Location |
 # MAGIC |---|---|
@@ -59,10 +63,11 @@ logger.info("Source landing volume : %s", src)
 
 # MAGIC %md
 # MAGIC ## Target schemas and volume
-# MAGIC The shared `fraud_landing` / `fraud_bronze` schemas and the `raw_data` volume are
-# MAGIC declared as bundle resources (the `shared_infra` block in `databricks.yml`) and
-# MAGIC created by `databricks bundle deploy -t dev` before this job runs. The raw files are
-# MAGIC uploaded into the volume after the deploy, and this notebook just reads them.
+# MAGIC
+# MAGIC - The `fraud_landing` / `fraud_bronze` schemas and the `raw_data` volume are declared as
+# MAGIC   bundle resources (the `shared_infra` block in `databricks.yml`).
+# MAGIC - `databricks bundle deploy -t dev` creates them before this job runs.
+# MAGIC - The raw files are uploaded into the volume after the deploy; this notebook only reads them.
 
 # COMMAND ----------
 

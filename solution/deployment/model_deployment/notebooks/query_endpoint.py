@@ -4,16 +4,18 @@
 # MAGIC
 # MAGIC **Session:** Model Serving & Consumption
 # MAGIC
-# MAGIC A short test harness for the endpoint the deployment job created. It replays real
-# MAGIC transactions through the endpoint one at a time, the way a payment gateway would call
-# MAGIC the model as each transaction happens.
+# MAGIC Test harness for the endpoint the deployment job created. It sends real transactions
+# MAGIC through the endpoint one at a time, as a payment gateway would call the model per
+# MAGIC transaction.
 # MAGIC
-# MAGIC Each call sets `client_request_id` = the transaction id: a correlation id the AI
-# MAGIC Gateway logs in its own column, so the Monitoring session can join these predictions
-# MAGIC back to confirmed-fraud labels later. The transaction id is metadata, not a model
-# MAGIC input; the payload is just the raw transaction spine (`card_id`, `client_id`,
-# MAGIC `amount`, `transaction_hour`, `mcc`, `use_chip`), and the endpoint looks up the entity
-# MAGIC features and runs the on-demand functions per request.
+# MAGIC Each call sets `client_request_id` to the transaction id, a correlation id the AI
+# MAGIC Gateway logs in its own column, so the Monitoring session can join these predictions to
+# MAGIC confirmed-fraud labels later. The transaction id is metadata, not a model input; the
+# MAGIC payload is the raw transaction spine (`card_id`, `client_id`, `amount`,
+# MAGIC `transaction_hour`, `mcc`, `use_chip`), and the endpoint looks up the entity features
+# MAGIC and runs the on-demand functions per request.
+# MAGIC
+# MAGIC Docs: [Query serving endpoints](https://learn.microsoft.com/azure/databricks/machine-learning/model-serving/score-model-serving-endpoints)
 # MAGIC
 # MAGIC Docs: [Query serving endpoints](https://learn.microsoft.com/azure/databricks/machine-learning/model-serving/score-model-serving-endpoints)
 

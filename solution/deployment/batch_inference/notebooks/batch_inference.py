@@ -1,21 +1,23 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Batch inference: the weekly fraud report
+# MAGIC # Batch inference
 # MAGIC
 # MAGIC **Session:** Model Serving & Consumption / Monitoring & Retraining
 # MAGIC
 # MAGIC Score a batch of transactions with the governed `@champion` model and append the
-# MAGIC results to an inference table. This is the batch prediction path (a scheduled "weekly
-# MAGIC report"), and the table it writes is what the batch monitor profiles in the
-# MAGIC Monitoring session.
+# MAGIC results to an inference table. This is the scheduled batch prediction path, and the
+# MAGIC table it writes is what the batch monitor profiles in the Monitoring session.
 # MAGIC
 # MAGIC - **Model (personal):** `dev.<you>_fraud.fraud_detection@champion`
 # MAGIC - **Inference table (personal):** `dev.<you>_fraud.fraud_predictions`
 # MAGIC
-# MAGIC To be usable by Lakehouse Monitoring's InferenceLog analysis, every row needs four
-# MAGIC things beyond the features: a prediction, the model version that produced it, a
-# MAGIC timestamp, and (when it arrives) the ground-truth label. We write all four so the
-# MAGIC monitor can track both drift and quality over time.
+# MAGIC Lakehouse Monitoring's InferenceLog analysis needs four columns beyond the features on
+# MAGIC every row, all written here so the monitor can track drift and quality:
+# MAGIC
+# MAGIC - the prediction;
+# MAGIC - the model version that produced it;
+# MAGIC - a scoring timestamp;
+# MAGIC - the ground-truth label, when available.
 # MAGIC
 # MAGIC Docs: [Batch inference with Feature Engineering](https://learn.microsoft.com/azure/databricks/machine-learning/feature-store/score-batch)
 

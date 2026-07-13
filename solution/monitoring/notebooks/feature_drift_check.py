@@ -4,21 +4,19 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
-# MAGIC **What this notebook is:** an automated job task (like `metric_violation_check.py`), not
-# MAGIC a lab you open. It runs headless inside the scheduled `retraining_job` and emits a
-# MAGIC true/false. Contrast `monitoring.py`, which is the human-facing dashboard that just
-# MAGIC *displays* the same drift numbers for a person to read.
+# MAGIC Automated task in the scheduled `retraining_job`. It reads the monitor's
+# MAGIC `..._drift_metrics` table, decides whether one or more features have drifted enough for
+# MAGIC long enough to act on, and publishes the boolean `is_drift_violated` as a task value. A
+# MAGIC `condition_task` reads that value and, with the quality check, decides whether to retrain.
 # MAGIC
-# MAGIC A sibling of `metric_violation_check.py`, but for **feature (data) drift** instead of
-# MAGIC model quality. It reads the monitor's `..._drift_metrics` table and decides whether the
-# MAGIC input distribution of one or more features has shifted enough, for long enough, to act
-# MAGIC on. It publishes the boolean `is_drift_violated` as a job task value; a `condition_task`
-# MAGIC in the retraining job reads it and (together with the quality check) decides whether to
-# MAGIC retrain.
+# MAGIC Related notebooks:
 # MAGIC
-# MAGIC Why a separate notebook from the quality check: quality metrics live in
-# MAGIC `..._profile_metrics` as structs keyed by `:table`/`model_version`, while drift lives in
-# MAGIC `..._drift_metrics` with one row **per feature column**. Different table, different shape.
+# MAGIC - `metric_violation_check.py`: the same pattern for model quality (`..._profile_metrics`).
+# MAGIC - `monitoring.py`: the interactive dashboard that displays these metrics.
+# MAGIC
+# MAGIC Quality and drift live in separate tables: `..._profile_metrics` holds quality metrics
+# MAGIC as structs keyed by `:table` / `model_version`, while `..._drift_metrics` holds one row
+# MAGIC per feature column.
 # MAGIC
 # MAGIC Parameters:
 # MAGIC - `table_name_under_monitor`: the inference table the monitor profiles.
@@ -30,10 +28,10 @@
 # MAGIC - `num_evaluation_windows` / `num_violation_windows`: how many recent windows to look at,
 # MAGIC   and how many must be in violation before we act.
 # MAGIC
-# MAGIC A note on acting on feature drift: retraining only helps once **fresh labels** arrive, so
-# MAGIC in production feature drift usually raises an **alert** first, and the label-based quality
-# MAGIC check is what actually gates retraining. Here we wire drift into the same retraining
-# MAGIC trigger (OR-ed with the quality check) to show the mechanism end-to-end.
+# MAGIC Note on acting on feature drift: retraining only helps once fresh labels arrive, so in
+# MAGIC production feature drift typically raises an alert first, and the label-based quality
+# MAGIC check gates retraining. Here drift is wired into the same trigger (OR-ed with the
+# MAGIC quality check) to demonstrate the mechanism end to end.
 # MAGIC
 # MAGIC Docs: [Monitor metric tables](https://learn.microsoft.com/azure/databricks/lakehouse-monitoring/monitor-output)
 

@@ -4,25 +4,20 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
-# MAGIC **What this notebook is:** the human-facing dashboard. You open and run it
-# MAGIC interactively to *see* the metrics; it only `display()`s tables and makes no decisions,
-# MAGIC and it is NOT part of the retraining job. The automated decisions live in two sibling
-# MAGIC job-task notebooks, `metric_violation_check.py` (model quality) and
-# MAGIC `feature_drift_check.py` (feature drift), which read these same metric tables headless
-# MAGIC and emit a true/false signal the retraining job acts on. Same tables, different reader:
-# MAGIC here a person looks; there the job decides.
+# MAGIC Interactive dashboard. It refreshes the two Lakehouse Monitors and displays the metric
+# MAGIC tables they produce; it makes no decisions and is not part of the retraining job. The
+# MAGIC automated decisions run headless in two job tasks that read the same tables:
+# MAGIC `metric_violation_check.py` (model quality) and `feature_drift_check.py` (feature drift).
 # MAGIC
-# MAGIC Two Lakehouse Monitors were created declaratively by the bundle: one over the
-# MAGIC batch report table and one over the online serving table. This lab refreshes them and
-# MAGIC reads the metric tables they produce, so you can see model quality and drift over time
-# MAGIC and compare the two prediction distributions.
+# MAGIC The bundle creates two monitors:
+# MAGIC
+# MAGIC - **Batch table:** `dev.<you>_fraud.fraud_predictions` (labels present, drift and quality).
+# MAGIC - **Online table:** `dev.<you>_fraud.fraud_serving_inference` (labels lag, drift-led).
 # MAGIC
 # MAGIC Each monitor emits two Delta tables plus a dashboard:
-# MAGIC - `..._profile_metrics`: summary stats and model-quality metrics per window / model.
-# MAGIC - `..._drift_metrics`: how the data / predictions drift window-over-window.
 # MAGIC
-# MAGIC - **Batch table:** `dev.<you>_fraud.fraud_predictions` (has labels, so drift and quality)
-# MAGIC - **Online table:** `dev.<you>_fraud.fraud_serving_inference` (labels lag, drift-led)
+# MAGIC - `..._profile_metrics`: summary statistics and model-quality metrics per window / model.
+# MAGIC - `..._drift_metrics`: data and prediction drift, window over window.
 # MAGIC
 # MAGIC Docs: [Lakehouse Monitoring](https://learn.microsoft.com/azure/databricks/lakehouse-monitoring/)
 
@@ -53,9 +48,10 @@ print(f"Online monitor table: {online_table}")
 
 # MAGIC %md
 # MAGIC ## 1. Refresh the monitors
-# MAGIC The bundle created the monitors on a schedule, but in a live lab we refresh on demand
-# MAGIC so the metric tables reflect the rows we just scored. A refresh recomputes the
-# MAGIC profile and drift metrics; it can take a few minutes.
+# MAGIC
+# MAGIC The monitors run on a schedule, but here they are refreshed on demand so the metric
+# MAGIC tables reflect the rows just scored. A refresh recomputes the profile and drift metrics
+# MAGIC and can take a few minutes.
 
 # COMMAND ----------
 
@@ -84,9 +80,10 @@ for table in [batch_table, online_table]:
 
 # MAGIC %md
 # MAGIC ## 2. Model quality over time (batch)
+# MAGIC
 # MAGIC The batch table has ground-truth labels, so its `_profile_metrics` table carries
-# MAGIC model-quality metrics per time window. Read the whole-table rows for the real model
-# MAGIC versions and watch the quality trend; this is what the retraining trigger checks.
+# MAGIC model-quality metrics per window. This reads the whole-table rows for the real model
+# MAGIC versions to show the quality trend, the signal the retraining trigger checks.
 
 # COMMAND ----------
 
@@ -125,9 +122,10 @@ else:
 
 # MAGIC %md
 # MAGIC ## 3. Drift over time (batch + online)
-# MAGIC The `_drift_metrics` table quantifies how the predictions and features shift
-# MAGIC window-over-window. Because online ad-hoc traffic is skewed differently from the
-# MAGIC weekly batch, comparing the two drift profiles is exactly the signal we care about.
+# MAGIC
+# MAGIC The `_drift_metrics` table quantifies how predictions and features shift window over
+# MAGIC window. Online traffic is distributed differently from the batch, so comparing the two
+# MAGIC drift profiles is a useful signal.
 
 # COMMAND ----------
 
@@ -160,12 +158,12 @@ for label, table in [("batch", batch_table), ("online", online_table)]:
 
 # MAGIC %md
 # MAGIC ## 4. Feature (data) drift
-# MAGIC The same `_drift_metrics` table has a row per input **feature**, so we can watch the
-# MAGIC input distribution shift, not just the prediction. `population_stability_index` (PSI)
-# MAGIC is populated for numeric features (Lakehouse Monitoring leaves `js_distance` null for
-# MAGIC them and only fills it for categoricals). Rising drift on a key feature is an early
-# MAGIC warning that the world has moved; the retraining job's feature-drift check thresholds
-# MAGIC exactly these values.
+# MAGIC
+# MAGIC The same `_drift_metrics` table has a row per input feature, so input distribution
+# MAGIC shift can be tracked, not just prediction drift. `population_stability_index` (PSI) is
+# MAGIC populated for numeric features; Lakehouse Monitoring leaves `js_distance` null for
+# MAGIC numeric columns and fills it only for categoricals. The retraining job's feature-drift
+# MAGIC check thresholds these same values.
 
 # COMMAND ----------
 
@@ -207,13 +205,13 @@ else:
 
 # MAGIC %md
 # MAGIC ## Recap
-# MAGIC - **Two monitors, one picture:** batch (quality + drift) and online (drift-led) cover
-# MAGIC   both prediction distributions.
-# MAGIC - **Prediction drift vs feature drift:** section 3 watches the model's output
-# MAGIC   distribution; section 4 watches the input features (data drift). Both come from the
-# MAGIC   same `_drift_metrics` table.
-# MAGIC - The auto-generated dashboard (linked from each table in Catalog Explorer) is the
-# MAGIC   shareable view of everything above.
-# MAGIC - The retraining job acts on two signals: the batch `_profile_metrics` quality trend
-# MAGIC   (label-based) and sustained feature drift from `_drift_metrics`. Either one can
-# MAGIC   trigger training, which then picks up the latest labelled data.
+# MAGIC
+# MAGIC - Two monitors cover both prediction distributions: batch (quality and drift) and
+# MAGIC   online (drift-led).
+# MAGIC - Section 3 tracks prediction drift (model output); section 4 tracks feature drift
+# MAGIC   (model inputs). Both come from the same `_drift_metrics` table.
+# MAGIC - The auto-generated dashboard, linked from each table in Catalog Explorer, is the
+# MAGIC   shareable view.
+# MAGIC - The retraining job acts on two signals: the batch quality trend (`_profile_metrics`,
+# MAGIC   label-based) and sustained feature drift (`_drift_metrics`). Either can trigger
+# MAGIC   training, which retrains on the latest labelled data.

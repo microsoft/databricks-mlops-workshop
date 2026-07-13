@@ -90,11 +90,16 @@ fe = FeatureEngineeringClient()
 
 # MAGIC %md
 # MAGIC ## Connect the model to its deployment job
+# MAGIC
 # MAGIC If the training job passed a `deployment_job_id`, connect it to the registered model
-# MAGIC **before** registering a version, so registering the new version auto-triggers the
-# MAGIC governed evaluate/approve/deploy pipeline (even for the first version).
-# MAGIC `create_registered_model` makes the empty model on first run; later runs just
-# MAGIC `update_registered_model`. Skipped when run interactively without a job id.
+# MAGIC **before** registering a version:
+# MAGIC
+# MAGIC - registering the new version then auto-triggers the governed evaluate/approve/deploy
+# MAGIC   pipeline, even for the first version;
+# MAGIC - `create_registered_model` makes the empty model on the first run, later runs just
+# MAGIC   `update_registered_model`;
+# MAGIC - skipped when run interactively without a job id.
+# MAGIC
 # MAGIC See [MLflow deployment jobs](https://learn.microsoft.com/azure/databricks/mlflow/deployment-job).
 
 # COMMAND ----------
@@ -117,11 +122,12 @@ else:
 
 # MAGIC %md
 # MAGIC ## 1. Assemble the training set
-# MAGIC The spine is the raw transaction: keys (`card_id`, `client_id`), the request fields
-# MAGIC (`amount`, `transaction_hour`, `mcc`, `use_chip`) and the label. The Feature Store
-# MAGIC looks up the card/client entity features and computes the on-demand features with the
-# MAGIC UC functions. `create_training_set` records this so serving reproduces the same
-# MAGIC feature pipeline.
+# MAGIC
+# MAGIC - The spine is the raw transaction: keys (`card_id`, `client_id`), the request fields
+# MAGIC   (`amount`, `transaction_hour`, `mcc`, `use_chip`), and the label.
+# MAGIC - The Feature Store looks up the card/client entity features and computes the on-demand
+# MAGIC   features with the UC functions.
+# MAGIC - `create_training_set` records this spec, so serving reproduces the same feature pipeline.
 
 # COMMAND ----------
 
@@ -204,15 +210,20 @@ print(f"Rows: {len(train_pdf):,}  |  features: {list(X.columns)}  |  fraud rate:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Train, expose the imbalance trap, then fix it
-# MAGIC Fraud is very rare (well under 1% of rows), so a model can score ~99.8% accuracy by
-# MAGIC always predicting "not fraud" and catch zero fraud. We first train a naive random
-# MAGIC forest to see that trap, then fix it by balancing the training data (keep every fraud
-# MAGIC row, down-sample non-fraud to match) so the model learns what fraud looks like. We
-# MAGIC still evaluate on the untouched, imbalanced test set so metrics reflect reality.
-# MAGIC `fe.log_model` packages the fixed model with its feature metadata, infers a signature
-# MAGIC and input example (so it can be served safely), and registers it to Unity Catalog in
-# MAGIC one step (no separate `register_model` call).
+# MAGIC ## 2. Train the model and address class imbalance
+# MAGIC
+# MAGIC Fraud accounts for well under 1% of rows, so a model can reach roughly 99.8% accuracy
+# MAGIC by always predicting "not fraud" while detecting none. The workflow:
+# MAGIC
+# MAGIC - Train a baseline random forest on the raw, imbalanced data to establish the problem.
+# MAGIC - Retrain on balanced data (retain every fraud row, down-sample non-fraud to match) so
+# MAGIC   the model learns the minority class.
+# MAGIC - Evaluate on the original, imbalanced test set so the reported metrics reflect
+# MAGIC   production conditions.
+# MAGIC
+# MAGIC `fe.log_model` packages the model with its feature metadata, infers a signature and
+# MAGIC input example, and registers it to Unity Catalog in a single step (no separate
+# MAGIC `register_model` call).
 
 # COMMAND ----------
 
@@ -313,12 +324,16 @@ print(metrics)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Confusion matrices: the imbalance trap, side by side
-# MAGIC Read the **fraud row** (bottom): the naive model dumps almost everything into
-# MAGIC "predicted legit" (false negatives) and catches ~no fraud, while the balanced model
-# MAGIC finally fills the **true-positive** cell, at the cost of more false positives
-# MAGIC (top-right). Same untouched, imbalanced test set. The figure is also logged to the
-# MAGIC `rf_balanced` MLflow run so it sits with the model version.
+# MAGIC ### Confusion matrix comparison
+# MAGIC
+# MAGIC Compare the two models on the fraud row (bottom):
+# MAGIC
+# MAGIC - The baseline model assigns almost all fraud to "predicted legit" (false negatives)
+# MAGIC   and detects little fraud.
+# MAGIC - The balanced model recovers true positives at the cost of more false positives.
+# MAGIC
+# MAGIC Both use the same original, imbalanced test set. The figure is logged to the
+# MAGIC `rf_balanced` MLflow run so it stays with the model version.
 
 # COMMAND ----------
 
@@ -344,29 +359,30 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### But look at precision: the recall fix isn't free
-# MAGIC The balanced model now catches most fraud (high recall), but its precision is very
-# MAGIC low: most transactions it flags are actually legitimate. That's the precision/recall
-# MAGIC trade-off. Balancing the data pushed the model to flag "fraud" far more often,
-# MAGIC catching real fraud and drowning in false alarms.
+# MAGIC ### Precision-recall trade-off
 # MAGIC
-# MAGIC In production you'd tune the decision threshold (score > 0.8 instead of 0.5) to trade
-# MAGIC recall back for precision, and pick the operating point from the business cost of a
-# MAGIC missed fraud vs. a false alarm, often measured as precision@k or PR-AUC rather than a
-# MAGIC single accuracy/recall number. That's a business decision, not a modelling one, which
-# MAGIC is why the promotion gate (next section) should encode the metric the business cares
-# MAGIC about.
+# MAGIC The balanced model achieves high recall but low precision: most flagged transactions
+# MAGIC are legitimate. Balancing the data makes the model predict "fraud" far more often,
+# MAGIC which recovers real fraud but raises the false-positive rate.
+# MAGIC
+# MAGIC In production the decision threshold is tuned (for example, score > 0.8 rather than
+# MAGIC 0.5) to trade recall for precision. The operating point is chosen from the business
+# MAGIC cost of a missed fraud versus a false alarm, and is typically assessed with precision@k
+# MAGIC or PR-AUC rather than a single accuracy or recall figure. Because this is a business
+# MAGIC decision, the promotion gate in the next section encodes the metric the business
+# MAGIC requires.
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 3. Tag the new version as `challenger` (instructor-provided)
-# MAGIC The training run registered a fresh model version. Point the `challenger` alias at it
-# MAGIC for a clear before/after picture. Registering the version also auto-triggers the
-# MAGIC deployment job, whose Evaluation task re-scores it on a fresh holdout and compares it
-# MAGIC against the current `@champion` before it can be promoted. Downstream jobs always load
-# MAGIC `@champion`, so promotion is just an alias reassignment: no code change and instant
-# MAGIC rollback.
+# MAGIC
+# MAGIC The training run registered a new model version. Point the `challenger` alias at it to
+# MAGIC give a clear before/after comparison. Registering the version also triggers the
+# MAGIC deployment job, whose Evaluation task re-scores the version on a fresh holdout and
+# MAGIC compares it against the current `@champion` before promotion. Downstream jobs always
+# MAGIC load `@champion`, so promotion is an alias reassignment: no code change, and rollback
+# MAGIC is immediate.
 
 # COMMAND ----------
 
@@ -382,12 +398,12 @@ print(f"Registered {model_name} version {new_version} and set alias @challenger.
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Train a challenger (try it)
+# MAGIC ## Train a challenger
 # MAGIC The first model becomes `@champion` once the deployment job promotes it. To produce a
 # MAGIC challenger to compete against it, change the model and re-run this whole notebook.
 # MAGIC Each run registers a new version and moves `@challenger` to it:
 # MAGIC
-# MAGIC - In **section 2**, tweak the hyper-parameters in `params`, for example:
+# MAGIC - In **section 2**, adjust the hyper-parameters in `params`, for example:
 # MAGIC   - bump `n_estimators` to `200`, or
 # MAGIC   - add `max_depth=8` or `min_samples_leaf=5` to regularise, or
 # MAGIC   - swap in a different estimator (e.g. `GradientBoostingClassifier`).

@@ -15,7 +15,7 @@
 # MAGIC 3. **Deployment**: promote the version to `@champion` and serve it.
 # MAGIC
 # MAGIC The version being evaluated is the one that triggered the job, so there is no
-# MAGIC champion/challenger bookkeeping here. We evaluate this version and gate it against a
+# MAGIC champion/challenger bookkeeping here. The version is evaluated and gated against a
 # MAGIC metric floor (and the current champion, if any).
 # MAGIC See [MLflow deployment jobs](https://learn.microsoft.com/azure/databricks/mlflow/deployment-job).
 
@@ -106,9 +106,10 @@ client.set_model_version_tag(model_name, model_version, "eval_bar", f"{bar:.4f}"
 
 # MAGIC %md
 # MAGIC ### Confusion matrix for the approver
+# MAGIC
 # MAGIC Threshold the candidate's fraud score at 0.5 and show the confusion matrix on the
-# MAGIC holdout, logged to an MLflow run so it sits alongside the metrics an approver reviews
-# MAGIC before clicking Approve.
+# MAGIC holdout, logged to an MLflow run so it sits alongside the metrics the approver reviews
+# MAGIC before approving.
 
 # COMMAND ----------
 
@@ -134,11 +135,15 @@ plt.show()
 
 # MAGIC %md
 # MAGIC ### ROC and precision-recall curves
-# MAGIC The confusion matrix is a single operating point; these curves show the whole
-# MAGIC threshold trade-off. The **ROC** curve's area is the gate metric (threshold-independent),
-# MAGIC and on rare-fraud data the **precision-recall** curve (with its average precision) is the
-# MAGIC more honest read of how much precision you give up as you chase recall. Both are logged
-# MAGIC to the same evaluation run, alongside the confusion matrix.
+# MAGIC
+# MAGIC The confusion matrix is a single operating point; these curves show the full threshold
+# MAGIC trade-off:
+# MAGIC
+# MAGIC - the ROC curve's area is the gate metric (threshold-independent);
+# MAGIC - on rare-fraud data, the precision-recall curve (and its average precision) shows how
+# MAGIC   much precision is given up as recall increases.
+# MAGIC
+# MAGIC Both are logged to the same evaluation run, alongside the confusion matrix.
 
 # COMMAND ----------
 

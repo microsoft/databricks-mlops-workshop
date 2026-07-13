@@ -4,24 +4,24 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
-# MAGIC **What this notebook is:** an automated job task, not a lab you open. It runs headless
-# MAGIC inside the scheduled `retraining_job` (nobody watching) and produces a machine-readable
-# MAGIC true/false. Contrast `monitoring.py`, which is the human-facing dashboard that only
-# MAGIC *displays* these same metrics for a person to read.
+# MAGIC Automated task in the scheduled `retraining_job`. It reads the monitor's
+# MAGIC `..._profile_metrics` table, decides whether model quality has degraded across recent
+# MAGIC windows, and publishes the boolean `is_metric_violated` as a task value. A downstream
+# MAGIC `condition_task` reads that value and triggers `model_training_job` only when quality
+# MAGIC has degraded.
 # MAGIC
-# MAGIC One task in the retraining job. It reads the monitor's
-# MAGIC `..._profile_metrics` table to decide whether model quality has degraded across
-# MAGIC recent windows, and publishes the boolean answer as a job task value
-# MAGIC (`is_metric_violated`). The next task is a `condition_task` that reads this value and
-# MAGIC only then triggers `model_training_job`, so retraining fires only when the data says
-# MAGIC the model has actually gotten worse.
+# MAGIC Related notebooks:
+# MAGIC
+# MAGIC - `feature_drift_check.py`: the same pattern for feature drift (`..._drift_metrics`).
+# MAGIC - `monitoring.py`: the interactive dashboard that displays these metrics.
 # MAGIC
 # MAGIC Parameters:
+# MAGIC
 # MAGIC - `table_name_under_monitor`: the inference table the monitor profiles.
 # MAGIC - `metric_to_monitor`: quality metric column in `..._profile_metrics` (e.g. `f1_score`).
 # MAGIC - `metric_violation_threshold`: retrain if the metric drops below this.
-# MAGIC - `num_evaluation_windows` / `num_violation_windows`: how many recent windows to look
-# MAGIC   at, and how many must be in violation before retraining.
+# MAGIC - `num_evaluation_windows` / `num_violation_windows`: how many recent windows to check,
+# MAGIC   and how many must be in violation before retraining.
 # MAGIC
 # MAGIC Docs: [Lakehouse Monitoring metric tables](https://learn.microsoft.com/azure/databricks/lakehouse-monitoring/monitor-output)
 
