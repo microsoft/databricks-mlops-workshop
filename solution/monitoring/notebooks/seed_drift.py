@@ -25,7 +25,7 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "dev")
+dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("user_schema", "")
 dbutils.widgets.text("amount_multiplier", "6.0", label="Scale amount by this to force drift")
 dbutils.widgets.text("num_rows", "5000", label="How many drifted rows to append")
