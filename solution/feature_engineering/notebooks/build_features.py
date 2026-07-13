@@ -228,5 +228,25 @@ for column, text in CARD_COMMENTS.items():
 for column, text in CLIENT_COMMENTS.items():
     spark.sql(f"ALTER TABLE {client_feature_table} ALTER COLUMN {column} COMMENT '{text}'")
 
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Production considerations
+# MAGIC
+# MAGIC This notebook makes two deliberate simplifications:
+# MAGIC
+# MAGIC - **Point-in-time correctness.** The feature tables have a primary key only (no
+# MAGIC   `timestamp_keys`), and the training-set `FeatureLookup`s set no `timestamp_lookup_key`,
+# MAGIC   so each transaction joins the entity's current attribute values rather than the values
+# MAGIC   as of the transaction time. For attributes that change over time (for example a credit
+# MAGIC   score), this risks label leakage. In production, make the feature tables time-series
+# MAGIC   tables (add a feature timestamp and `timestamp_keys=[...]`), carry `transaction_ts` on
+# MAGIC   the training spine, and set `timestamp_lookup_key="transaction_ts"` so each row joins the
+# MAGIC   value effective at its own time.
+# MAGIC - **Source of the entity attributes.** Here the card/client attributes are taken from the
+# MAGIC   flattened `transactions_enriched` table with `F.first`. In production, source them from
+# MAGIC   the entity dimension of record (the `cards` / `users` tables), which is authoritative,
+# MAGIC   carries history, and supports the point-in-time joins above.
+
 display(spark.read.table(card_feature_table).limit(10))
 display(spark.read.table(client_feature_table).limit(10))
