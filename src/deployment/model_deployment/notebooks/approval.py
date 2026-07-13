@@ -20,6 +20,8 @@
 
 # COMMAND ----------
 
+# The deployment job injects the FULL three-level model name (catalog.schema.model) into
+# `model_name`, plus the `model_version` it is gating.
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("approval_tag_name", "")

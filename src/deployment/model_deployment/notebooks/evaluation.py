@@ -21,22 +21,42 @@
 
 # COMMAND ----------
 
-# The deployment job injects model_name + model_version as JOB-level parameters.
+# The deployment job injects the FULL three-level model name (catalog.schema.model) into
+# `model_name`, plus the `model_version` that triggered it. Both are empty when this notebook
+# is run interactively, so the fallback below rebuilds them.
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("catalog_name", "adoption_workshop")
+dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("metric", "roc_auc")
 dbutils.widgets.text("baseline", "0.65")
 
 uc_model_name = dbutils.widgets.get("model_name")
 model_version = dbutils.widgets.get("model_version")
 catalog_name = dbutils.widgets.get("catalog_name")
+ml_schema = dbutils.widgets.get("ml_schema")
 metric = dbutils.widgets.get("metric")
 baseline = float(dbutils.widgets.get("baseline"))
 
-assert uc_model_name and model_version, (
-    "model_name and model_version are injected by the deployment job."
-)
+from pyspark.sql import functions as F
+
+# Interactive fallback: rebuild the personal schema and the full model name the same way the
+# training/batch notebooks do, and default to the latest version, so this runs by hand too.
+if not ml_schema:
+    _user = spark.range(1).select(F.current_user()).first()[0]
+    _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
+    ml_schema = f"dev_{_short}_fraud"
+if not uc_model_name:
+    uc_model_name = f"{catalog_name}.{ml_schema}.fraud_detection"
+if not model_version:
+    import mlflow
+    from mlflow.tracking import MlflowClient
+
+    mlflow.set_registry_uri("databricks-uc")
+    model_version = str(
+        max(int(mv.version) for mv in MlflowClient().search_model_versions(f"name='{uc_model_name}'"))
+    )
+
 print(f"Evaluating {uc_model_name} version {model_version} on '{metric}' (floor {baseline}).")
 
 # COMMAND ----------
