@@ -24,11 +24,11 @@ dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("ml_schema", "")
 
-model_name = dbutils.widgets.get("model_name")
+uc_model_name = dbutils.widgets.get("model_name")
 model_version = dbutils.widgets.get("model_version")
 catalog_name = dbutils.widgets.get("catalog_name")
 ml_schema = dbutils.widgets.get("ml_schema")
-assert model_name and model_version, (
+assert uc_model_name and model_version, (
     "model_name and model_version are injected by the deployment job."
 )
 
@@ -46,7 +46,7 @@ online_store_name = "fraud-workshop-online"
 card_feature_table = f"{catalog_name}.{ml_schema}.card_features"
 client_feature_table = f"{catalog_name}.{ml_schema}.client_features"
 
-print(f"Deploying {model_name} v{model_version} -> endpoint {endpoint_name}")
+print(f"Deploying {uc_model_name} v{model_version} -> endpoint {endpoint_name}")
 
 # COMMAND ----------
 
@@ -63,9 +63,9 @@ from mlflow.tracking import MlflowClient
 mlflow.set_registry_uri("databricks-uc")
 client = MlflowClient()
 
-client.set_registered_model_alias(model_name, "champion", model_version)
+client.set_registered_model_alias(uc_model_name, "champion", model_version)
 try:
-    client.delete_registered_model_alias(model_name, "challenger")
+    client.delete_registered_model_alias(uc_model_name, "challenger")
 except Exception:
     pass  # there may be no challenger alias (e.g. first deployment)
 print(f"@champion -> version {model_version}")
@@ -131,7 +131,7 @@ w = WorkspaceClient()
 
 served_entities = [
     ServedEntityInput(
-        entity_name=model_name,
+        entity_name=uc_model_name,
         entity_version=model_version,
         scale_to_zero_enabled=True,
         workload_size="Small",

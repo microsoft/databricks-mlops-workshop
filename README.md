@@ -456,7 +456,9 @@ base_parameters:
 ```
 
 and the model name follows the same schema:
-`${var.catalog_name}.${resources.schemas.ml_workspace.name}.fraud_detection`.
+`${var.catalog_name}.${resources.schemas.ml_workspace.name}.${var.model_name}`
+(where `model_name` is the bare name, default `fraud_detection`). The notebooks prepend
+the catalog and `ml_schema` to it to build the three-level `uc_model_name`.
 
 > **Why reference the resource, not a plain variable?** Development mode prefixes the schema
 > *resource* but not a hand-written variable, so a variable like `${short_name}_fraud` would

@@ -7,7 +7,7 @@
 # MAGIC This is the first task of the **MLflow 3 deployment job**. A deployment job is a
 # MAGIC Lakeflow Job that is **connected to a Unity Catalog registered model** and
 # MAGIC **auto-triggers on every new model version** (Databricks injects the job-level
-# MAGIC parameters `model_name` and `model_version`). The three tasks are:
+# MAGIC parameters `uc_model_name` and `model_version`). The three tasks are:
 # MAGIC
 # MAGIC 1. **Evaluation** (this notebook): score the new version and record its metrics on
 # MAGIC    the model-version page so an approver can decide.
@@ -28,16 +28,16 @@ dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("metric", "roc_auc")
 dbutils.widgets.text("baseline", "0.65")
 
-model_name = dbutils.widgets.get("model_name")
+uc_model_name = dbutils.widgets.get("model_name")
 model_version = dbutils.widgets.get("model_version")
 catalog_name = dbutils.widgets.get("catalog_name")
 metric = dbutils.widgets.get("metric")
 baseline = float(dbutils.widgets.get("baseline"))
 
-assert model_name and model_version, (
+assert uc_model_name and model_version, (
     "model_name and model_version are injected by the deployment job."
 )
-print(f"Evaluating {model_name} version {model_version} on '{metric}' (floor {baseline}).")
+print(f"Evaluating {uc_model_name} version {model_version} on '{metric}' (floor {baseline}).")
 
 # COMMAND ----------
 
@@ -79,7 +79,7 @@ eval_spine = (
 
 def score_holdout(version):
     """Score a model version on the holdout; return a pandas DF of is_fraud + fraud score."""
-    scored = fe.score_batch(model_uri=f"models:/{model_name}/{version}", df=eval_spine)
+    scored = fe.score_batch(model_uri=f"models:/{uc_model_name}/{version}", df=eval_spine)
     return scored.select("is_fraud", F.col("prediction").cast("double").alias("score")).toPandas()
 
 
@@ -89,7 +89,7 @@ candidate_score = float(roc_auc_score(candidate_pdf["is_fraud"], candidate_pdf["
 # Fair comparison: re-score the current champion on the SAME holdout. If there is no champion
 # yet (first model), gate against the metric floor instead.
 try:
-    champion = client.get_model_version_by_alias(model_name, "champion")
+    champion = client.get_model_version_by_alias(uc_model_name, "champion")
     champ_pdf = score_holdout(champion.version)
     bar = float(roc_auc_score(champ_pdf["is_fraud"], champ_pdf["score"]))
     bar_label = f"champion (v{champion.version})"
@@ -99,9 +99,9 @@ except Exception:
 print(f"candidate {metric}={candidate_score:.4f}  vs  {bar_label}={bar:.4f}")
 
 # Surface the decision inputs on the model version so the approver sees them in the UI.
-client.set_model_version_tag(model_name, model_version, "eval_metric", metric)
-client.set_model_version_tag(model_name, model_version, "eval_score", f"{candidate_score:.4f}")
-client.set_model_version_tag(model_name, model_version, "eval_bar", f"{bar:.4f}")
+client.set_model_version_tag(uc_model_name, model_version, "eval_metric", metric)
+client.set_model_version_tag(uc_model_name, model_version, "eval_score", f"{candidate_score:.4f}")
+client.set_model_version_tag(uc_model_name, model_version, "eval_bar", f"{bar:.4f}")
 
 # COMMAND ----------
 
@@ -125,7 +125,7 @@ fig, ax = plt.subplots(figsize=(5, 4))
 ConfusionMatrixDisplay(cm, display_labels=["legit", "fraud"]).plot(
     cmap="Blues", ax=ax, colorbar=False
 )
-ax.set_title(f"{model_name.split('.')[-1]} v{model_version} (holdout, threshold 0.5)")
+ax.set_title(f"{uc_model_name.split('.')[-1]} v{model_version} (holdout, threshold 0.5)")
 fig.tight_layout()
 with mlflow.start_run(run_name=f"evaluation_v{model_version}") as ev_run:
     mlflow.log_figure(fig, "confusion_matrix.png")

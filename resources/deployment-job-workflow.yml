@@ -24,7 +24,7 @@ resources:
         enabled: true
       parameters:
         - name: model_name
-          default: ${var.model_name}
+          default: ${var.catalog_name}.${var.ml_schema}.${var.model_name}
         - name: model_version
           default: ""
       tasks:

@@ -25,17 +25,17 @@ dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("approval_tag_name", "")
 dbutils.widgets.text("auto_approve", "false")
 
-model_name = dbutils.widgets.get("model_name")
+uc_model_name = dbutils.widgets.get("model_name")
 model_version = dbutils.widgets.get("model_version")
 # The deployment job passes the task name here (e.g. "Approval_Check") as the tag key.
 tag_name = dbutils.widgets.get("approval_tag_name") or "Approval_Check"
 auto_approve = dbutils.widgets.get("auto_approve").strip().lower() == "true"
 
-assert model_name and model_version, (
+assert uc_model_name and model_version, (
     "model_name and model_version are injected by the deployment job."
 )
 print(
-    f"Approval check for {model_name} v{model_version} | tag='{tag_name}' | auto_approve={auto_approve}"
+    f"Approval check for {uc_model_name} v{model_version} | tag='{tag_name}' | auto_approve={auto_approve}"
 )
 
 # COMMAND ----------
@@ -47,10 +47,10 @@ client = MlflowClient(registry_uri="databricks-uc")
 # In dev, auto-approve: set the tag so this run (and the UI) reflect an approved state, then
 # pass. In staging/prod, a human must have set the tag to "Approved".
 if auto_approve:
-    client.set_model_version_tag(model_name, model_version, tag_name, "Approved")
+    client.set_model_version_tag(uc_model_name, model_version, tag_name, "Approved")
     print(f"Auto-approved (dev): set {tag_name}=Approved on v{model_version}.")
 else:
-    mv = client.get_model_version(model_name, model_version)
+    mv = client.get_model_version(uc_model_name, model_version)
     status = (mv.tags or {}).get(tag_name)
     print(f"Current approval tag {tag_name}={status!r}")
     if status != "Approved":

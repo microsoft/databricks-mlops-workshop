@@ -25,7 +25,7 @@ dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("gold_schema", "fraud_gold")
 dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("experiment_name", "")
-dbutils.widgets.text("model_name", "")
+dbutils.widgets.text("model_name", "fraud_detection")
 dbutils.widgets.text("deployment_job_id", "")
 
 catalog_name = dbutils.widgets.get("catalog_name")
@@ -52,13 +52,14 @@ current_user = spark.range(1).select(F.current_user()).first()[0]
 experiment_name = (
     dbutils.widgets.get("experiment_name") or f"/Users/{current_user}/mlops-workshop-fraud"
 )
-model_name = dbutils.widgets.get("model_name") or f"{catalog_name}.{ml_schema}.fraud_detection"
+model_name = dbutils.widgets.get("model_name")
+uc_model_name = f"{catalog_name}.{ml_schema}.{model_name}"
 
 print(f"Card features:   {card_feature_table}")
 print(f"Client features: {client_feature_table}")
 print(f"Labels:          {source_table}")
 print(f"Experiment: {experiment_name}")
-print(f"Model:      {model_name}")
+print(f"Model:      {uc_model_name}")
 
 # COMMAND ----------
 
@@ -110,11 +111,11 @@ if deployment_job_id:
 
     _client = MlflowClient()
     try:
-        _client.get_registered_model(model_name)
-        _client.update_registered_model(model_name, deployment_job_id=deployment_job_id)
+        _client.get_registered_model(uc_model_name)
+        _client.update_registered_model(uc_model_name, deployment_job_id=deployment_job_id)
     except RestException:
-        _client.create_registered_model(model_name, deployment_job_id=deployment_job_id)
-    print(f"Connected {model_name} to deployment job {deployment_job_id}.")
+        _client.create_registered_model(uc_model_name, deployment_job_id=deployment_job_id)
+    print(f"Connected {uc_model_name} to deployment job {deployment_job_id}.")
 else:
     print("No deployment_job_id passed; skipping deployment-job connection (interactive run).")
 
@@ -318,13 +319,13 @@ with mlflow.start_run(run_name="rf_balanced") as run:
     # HINT:   reproduces the same features) and registers it to UC in a single call.
     # HINT: fe.log_model(model=FraudProbabilityModel(model), artifact_path="model",
     # HINT:   flavor=mlflow.pyfunc, training_set=training_set,
-    # HINT:   registered_model_name=model_name, infer_input_example=True)
+    # HINT:   registered_model_name=uc_model_name, infer_input_example=True)
     fe.log_model(
         model=FraudProbabilityModel(model),
         artifact_path="model",
         flavor=mlflow.pyfunc,
         training_set=training_set,
-        registered_model_name=model_name,
+        registered_model_name=uc_model_name,
         infer_input_example=True,
     )
     # TODO-END
@@ -416,10 +417,10 @@ plt.show()
 client = MlflowClient()
 # Unity Catalog's search_model_versions only supports a `name='...'` filter (no run_id
 # filtering), so fetch this model's versions and take the highest: the one registered above.
-versions = client.search_model_versions(f"name='{model_name}'")
+versions = client.search_model_versions(f"name='{uc_model_name}'")
 new_version = max(int(mv.version) for mv in versions)
-client.set_registered_model_alias(model_name, "challenger", new_version)
-print(f"Registered {model_name} version {new_version} and set alias @challenger.")
+client.set_registered_model_alias(uc_model_name, "challenger", new_version)
+print(f"Registered {uc_model_name} version {new_version} and set alias @challenger.")
 
 # COMMAND ----------
 

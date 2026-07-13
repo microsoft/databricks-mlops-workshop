@@ -26,7 +26,7 @@
 dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("gold_schema", "fraud_gold")
 dbutils.widgets.text("ml_schema", "")
-dbutils.widgets.text("model_name", "")
+dbutils.widgets.text("model_name", "fraud_detection")
 dbutils.widgets.text("model_alias", "champion")
 
 catalog_name = dbutils.widgets.get("catalog_name")
@@ -43,14 +43,15 @@ if not ml_schema:
     ml_schema = f"dev_{_short}_fraud"
 
 model_alias = dbutils.widgets.get("model_alias")
-# The batch-inference job passes the full three-level model name; fall back for interactive runs.
-model_name = dbutils.widgets.get("model_name") or f"{catalog_name}.{ml_schema}.fraud_detection"
+model_name = dbutils.widgets.get("model_name")
+# Prepend catalog + ml_schema to the bare model name to form the three-level UC name.
+uc_model_name = f"{catalog_name}.{ml_schema}.{model_name}"
 
 # Read the transactions to score from the shared gold source; write predictions to the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
 predictions_table = f"{catalog_name}.{ml_schema}.fraud_predictions"
 
-print(f"Model:       {model_name}@{model_alias}")
+print(f"Model:       {uc_model_name}@{model_alias}")
 print(f"Score from:  {source_table}")
 print(f"Write to:    {predictions_table}")
 
@@ -77,7 +78,7 @@ fe = FeatureEngineeringClient()
 # Resolve the champion alias to a concrete version, to stamp every scored row with the model
 # version that produced it (the monitor's model_id_col groups metrics by this).
 client = MlflowClient()
-champion = client.get_model_version_by_alias(model_name, model_alias)
+champion = client.get_model_version_by_alias(uc_model_name, model_alias)
 model_version = str(champion.version)
 print(f"{model_alias} -> version {model_version}")
 
@@ -121,10 +122,10 @@ print(f"Scoring {to_score.count():,} transactions")
 # COMMAND ----------
 
 # TODO-BEGIN: score the batch with the champion model
-# HINT: fe.score_batch(model_uri=f"models:/{model_name}@{model_alias}", df=to_score).
+# HINT: fe.score_batch(model_uri=f"models:/{uc_model_name}@{model_alias}", df=to_score).
 # HINT: the result has the lookup key plus a "prediction" column (the monitor's prediction_col).
 scored = fe.score_batch(
-    model_uri=f"models:/{model_name}@{model_alias}",
+    model_uri=f"models:/{uc_model_name}@{model_alias}",
     df=to_score,
 )
 # TODO-END
