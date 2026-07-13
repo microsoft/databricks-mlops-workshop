@@ -67,7 +67,7 @@ for table in [batch_table, online_table]:
         try:
             # TODO: refresh the monitor for this table
             # HINT: w.quality_monitors.run_refresh(table_name=table) starts a refresh and
-            # HINT:   returns a run whose run.refresh_id you can print.
+            # HINT:   returns a run with a run.refresh_id to print.
             # <-- Your code here
             print(f"Refresh started for {table}: refresh_id={run.refresh_id}")
         except Exception as exc:
