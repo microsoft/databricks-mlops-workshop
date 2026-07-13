@@ -21,22 +21,6 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Setup
-# MAGIC Install the Feature Engineering client so `score_batch` can resolve the feature
-# MAGIC lookups the model was trained with (no train/serve skew).
-
-# COMMAND ----------
-
-# MAGIC %pip install -q "mlflow>=3.0" --upgrade
-# MAGIC %pip install -q databricks-feature-engineering
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("gold_schema", "fraud_gold")
 dbutils.widgets.text("user_schema", "")

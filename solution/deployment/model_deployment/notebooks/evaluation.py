@@ -21,15 +21,6 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -q "mlflow>=3.0" --upgrade
-# MAGIC %pip install -q databricks-feature-engineering
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 # The deployment job injects model_name + model_version as JOB-level parameters.
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")

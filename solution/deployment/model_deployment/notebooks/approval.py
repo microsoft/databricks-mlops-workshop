@@ -20,14 +20,6 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -q "mlflow>=3.0" --upgrade
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("approval_tag_name", "")

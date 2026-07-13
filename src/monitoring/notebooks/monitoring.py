@@ -28,15 +28,6 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -q --upgrade databricks-sdk
-# MAGIC
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("user_schema", "")
 

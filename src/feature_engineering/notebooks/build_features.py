@@ -24,21 +24,6 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Setup
-# MAGIC Install the Feature Engineering client. On serverless this package is not
-# MAGIC pre-installed, so we add it and restart Python. (No-op on ML Runtime clusters.)
-
-# COMMAND ----------
-
-# MAGIC %pip install -q databricks-feature-engineering
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("gold_schema", "fraud_gold")
 dbutils.widgets.text("user_schema", "")
