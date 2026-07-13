@@ -15,7 +15,7 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "dev")
+dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("gold_schema", "fraud_gold")
 
 catalog_name = dbutils.widgets.get("catalog_name")

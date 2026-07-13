@@ -28,7 +28,7 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "dev")
+dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("user_schema", "")
 
 catalog_name = dbutils.widgets.get("catalog_name")
