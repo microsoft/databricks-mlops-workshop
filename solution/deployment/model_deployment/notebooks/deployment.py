@@ -18,35 +18,59 @@
 
 # COMMAND ----------
 
-# The deployment job injects model_name + model_version as JOB-level parameters.
+# The deployment job injects the FULL three-level model name (catalog.schema.model) into
+# `model_name`, plus the `model_version` that triggered it. Both are empty when this notebook
+# is run interactively, so the fallback below rebuilds them.
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("ml_schema", "")
 
-model_name = dbutils.widgets.get("model_name")
-model_version = dbutils.widgets.get("model_version")
+uc_model_name = dbutils.widgets.get("model_name").strip()
+model_version = dbutils.widgets.get("model_version").strip()
 catalog_name = dbutils.widgets.get("catalog_name")
 ml_schema = dbutils.widgets.get("ml_schema")
-assert model_name and model_version, (
-    "model_name and model_version are injected by the deployment job."
-)
+
+# Fail fast on a half-configured deployment job: model_name and model_version are injected
+# together. Both present = job; both empty = interactive run (derived below). Exactly one
+# present is a misconfiguration that would silently gate the wrong model or version.
+if bool(uc_model_name) != bool(model_version):
+    raise ValueError(
+        "Only one of model_name / model_version was provided. Pass both (deployment job) "
+        "or neither (interactive run)."
+    )
 
 from pyspark.sql import functions as F
 
-# Interactive fallback: jobs pass the resolved personal schema; running standalone derives
-# the same per-user name the bundle uses (dev_<short>_fraud) so runs stay isolated.
+# Interactive fallback: rebuild the personal schema and the full model name, and default to
+# the latest version, so the notebook can be run by hand (outside the deployment job).
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
     ml_schema = f"dev_{_short}_fraud"
+if not uc_model_name:
+    uc_model_name = f"{catalog_name}.{ml_schema}.fraud_detection"
+if not model_version:
+    import mlflow
+    from mlflow.tracking import MlflowClient
+
+    mlflow.set_registry_uri("databricks-uc")
+    _versions = [
+        int(mv.version)
+        for mv in MlflowClient().search_model_versions(f"name='{uc_model_name}'")
+    ]
+    if not _versions:
+        raise ValueError(
+            f"No model versions found for {uc_model_name!r}. Provide model_version explicitly."
+        )
+    model_version = str(max(_versions))
 
 endpoint_name = f"{ml_schema}_fraud"
 online_store_name = "fraud-workshop-online"
 card_feature_table = f"{catalog_name}.{ml_schema}.card_features"
 client_feature_table = f"{catalog_name}.{ml_schema}.client_features"
 
-print(f"Deploying {model_name} v{model_version} -> endpoint {endpoint_name}")
+print(f"Deploying {uc_model_name} v{model_version} -> endpoint {endpoint_name}")
 
 # COMMAND ----------
 
@@ -63,9 +87,9 @@ from mlflow.tracking import MlflowClient
 mlflow.set_registry_uri("databricks-uc")
 client = MlflowClient()
 
-client.set_registered_model_alias(model_name, "champion", model_version)
+client.set_registered_model_alias(uc_model_name, "champion", model_version)
 try:
-    client.delete_registered_model_alias(model_name, "challenger")
+    client.delete_registered_model_alias(uc_model_name, "challenger")
 except Exception:
     pass  # there may be no challenger alias (e.g. first deployment)
 print(f"@champion -> version {model_version}")
@@ -131,7 +155,7 @@ w = WorkspaceClient()
 
 served_entities = [
     ServedEntityInput(
-        entity_name=model_name,
+        entity_name=uc_model_name,
         entity_version=model_version,
         scale_to_zero_enabled=True,
         workload_size="Small",

@@ -21,23 +21,58 @@
 
 # COMMAND ----------
 
-# The deployment job injects model_name + model_version as JOB-level parameters.
+# The deployment job injects the FULL three-level model name (catalog.schema.model) into
+# `model_name`, plus the `model_version` that triggered it. Both are empty when this notebook
+# is run interactively, so the fallback below rebuilds them.
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("catalog_name", "adoption_workshop")
+dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("metric", "roc_auc")
 dbutils.widgets.text("baseline", "0.65")
 
-model_name = dbutils.widgets.get("model_name")
-model_version = dbutils.widgets.get("model_version")
+uc_model_name = dbutils.widgets.get("model_name").strip()
+model_version = dbutils.widgets.get("model_version").strip()
 catalog_name = dbutils.widgets.get("catalog_name")
+ml_schema = dbutils.widgets.get("ml_schema")
 metric = dbutils.widgets.get("metric")
 baseline = float(dbutils.widgets.get("baseline"))
 
-assert model_name and model_version, (
-    "model_name and model_version are injected by the deployment job."
-)
-print(f"Evaluating {model_name} version {model_version} on '{metric}' (floor {baseline}).")
+# Fail fast on a half-configured deployment job: model_name and model_version are injected
+# together. Both present = job; both empty = interactive run (derived below). Exactly one
+# present is a misconfiguration that would silently gate the wrong model or version.
+if bool(uc_model_name) != bool(model_version):
+    raise ValueError(
+        "Only one of model_name / model_version was provided. Pass both (deployment job) "
+        "or neither (interactive run)."
+    )
+
+from pyspark.sql import functions as F
+
+# Interactive fallback: rebuild the personal schema and the full model name the same way the
+# training/batch notebooks do, and default to the latest version, so this runs by hand too.
+if not ml_schema:
+    _user = spark.range(1).select(F.current_user()).first()[0]
+    _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
+    ml_schema = f"dev_{_short}_fraud"
+if not uc_model_name:
+    uc_model_name = f"{catalog_name}.{ml_schema}.fraud_detection"
+if not model_version:
+    import mlflow
+    from mlflow.tracking import MlflowClient
+
+    mlflow.set_registry_uri("databricks-uc")
+    _versions = [
+        int(mv.version)
+        for mv in MlflowClient().search_model_versions(f"name='{uc_model_name}'")
+    ]
+    if not _versions:
+        raise ValueError(
+            f"No model versions found for {uc_model_name!r}. Provide model_version explicitly."
+        )
+    model_version = str(max(_versions))
+
+print(f"Evaluating {uc_model_name} version {model_version} on '{metric}' (floor {baseline}).")
 
 # COMMAND ----------
 
@@ -79,7 +114,7 @@ eval_spine = (
 
 def score_holdout(version):
     """Score a model version on the holdout; return a pandas DF of is_fraud + fraud score."""
-    scored = fe.score_batch(model_uri=f"models:/{model_name}/{version}", df=eval_spine)
+    scored = fe.score_batch(model_uri=f"models:/{uc_model_name}/{version}", df=eval_spine)
     return scored.select("is_fraud", F.col("prediction").cast("double").alias("score")).toPandas()
 
 
@@ -89,7 +124,7 @@ candidate_score = float(roc_auc_score(candidate_pdf["is_fraud"], candidate_pdf["
 # Fair comparison: re-score the current champion on the SAME holdout. If there is no champion
 # yet (first model), gate against the metric floor instead.
 try:
-    champion = client.get_model_version_by_alias(model_name, "champion")
+    champion = client.get_model_version_by_alias(uc_model_name, "champion")
     champ_pdf = score_holdout(champion.version)
     bar = float(roc_auc_score(champ_pdf["is_fraud"], champ_pdf["score"]))
     bar_label = f"champion (v{champion.version})"
@@ -99,9 +134,9 @@ except Exception:
 print(f"candidate {metric}={candidate_score:.4f}  vs  {bar_label}={bar:.4f}")
 
 # Surface the decision inputs on the model version so the approver sees them in the UI.
-client.set_model_version_tag(model_name, model_version, "eval_metric", metric)
-client.set_model_version_tag(model_name, model_version, "eval_score", f"{candidate_score:.4f}")
-client.set_model_version_tag(model_name, model_version, "eval_bar", f"{bar:.4f}")
+client.set_model_version_tag(uc_model_name, model_version, "eval_metric", metric)
+client.set_model_version_tag(uc_model_name, model_version, "eval_score", f"{candidate_score:.4f}")
+client.set_model_version_tag(uc_model_name, model_version, "eval_bar", f"{bar:.4f}")
 
 # COMMAND ----------
 
@@ -125,7 +160,7 @@ fig, ax = plt.subplots(figsize=(5, 4))
 ConfusionMatrixDisplay(cm, display_labels=["legit", "fraud"]).plot(
     cmap="Blues", ax=ax, colorbar=False
 )
-ax.set_title(f"{model_name.split('.')[-1]} v{model_version} (holdout, threshold 0.5)")
+ax.set_title(f"{uc_model_name.split('.')[-1]} v{model_version} (holdout, threshold 0.5)")
 fig.tight_layout()
 with mlflow.start_run(run_name=f"evaluation_v{model_version}") as ev_run:
     mlflow.log_figure(fig, "confusion_matrix.png")

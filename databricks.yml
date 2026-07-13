@@ -15,8 +15,10 @@ variables:
     description: MLflow experiment for model training runs (per-user path).
     default: /Users/${workspace.current_user.userName}/${bundle.target}-mlops-workshop-fraud
   model_name:
-    description: Unity Catalog registered model name (in the per-user workspace schema).
-    default: ${var.catalog_name}.${var.ml_schema}.fraud_detection
+    description: >-
+      Bare (unqualified) registered model name. Notebooks prepend catalog_name + ml_schema
+      to form the three-level Unity Catalog name (uc_model_name).
+    default: fraud_detection
   catalog_name:
     description: Unity Catalog catalog for the environment (dev/staging/prod).
     default: adoption_workshop
