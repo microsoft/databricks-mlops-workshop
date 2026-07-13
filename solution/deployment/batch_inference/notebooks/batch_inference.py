@@ -139,9 +139,9 @@ scored = fe.score_batch(
 # MAGIC not just prediction drift (a monitor can only drift columns that are in the table).
 # MAGIC Then append.
 # MAGIC
-# MAGIC > The label (`is_fraud`) is joined here for the workshop so quality metrics compute
-# MAGIC > immediately. In the real world fraud is confirmed later (chargebacks), so the label
-# MAGIC > would be backfilled into this table when it arrives; drift is tracked in the meantime.
+# MAGIC > The label (`is_fraud`) is joined here so quality metrics compute immediately. In
+# MAGIC > production, fraud is confirmed later (chargebacks), so the label would be backfilled
+# MAGIC > into this table when it arrives; drift is tracked in the meantime.
 
 # COMMAND ----------
 

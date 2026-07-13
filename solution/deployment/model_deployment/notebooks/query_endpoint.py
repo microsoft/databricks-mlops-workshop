@@ -16,8 +16,6 @@
 # MAGIC and runs the on-demand functions per request.
 # MAGIC
 # MAGIC Docs: [Query serving endpoints](https://learn.microsoft.com/azure/databricks/machine-learning/model-serving/score-model-serving-endpoints)
-# MAGIC
-# MAGIC Docs: [Query serving endpoints](https://learn.microsoft.com/azure/databricks/machine-learning/model-serving/score-model-serving-endpoints)
 
 # COMMAND ----------
 

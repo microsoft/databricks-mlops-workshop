@@ -105,7 +105,7 @@ client.set_model_version_tag(model_name, model_version, "eval_bar", f"{bar:.4f}"
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Confusion matrix for the approver
+# MAGIC ## Confusion matrix for the approver
 # MAGIC
 # MAGIC Threshold the candidate's fraud score at 0.5 and show the confusion matrix on the
 # MAGIC holdout, logged to an MLflow run so it sits alongside the metrics the approver reviews
@@ -134,7 +134,7 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### ROC and precision-recall curves
+# MAGIC ## ROC and precision-recall curves
 # MAGIC
 # MAGIC The confusion matrix is a single operating point; these curves show the full threshold
 # MAGIC trade-off:
