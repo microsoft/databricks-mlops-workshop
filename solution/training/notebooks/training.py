@@ -276,7 +276,7 @@ class FraudProbabilityModel(mlflow.pyfunc.PythonModel):
 
 # Naive random forest (instructor-provided): the imbalance trap. Trained on the raw,
 # highly-imbalanced data it just learns to predict the majority class, so accuracy looks
-# great while recall is ~0 (it never actually flags a fraud). Logged for comparison, NOT
+# great while recall is ~0 (it never flags a fraud). Logged for comparison, NOT
 # registered.
 with mlflow.start_run(run_name="rf_imbalanced"):
     naive_params = {"n_estimators": 100, "random_state": 42}

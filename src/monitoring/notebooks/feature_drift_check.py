@@ -82,7 +82,7 @@ dbutils.widgets.text("num_violation_windows", "1", label="Windows that must viol
 # MAGIC
 # MAGIC PSI is thresholded (not `js_distance`) because Lakehouse Monitoring leaves `js_distance`
 # MAGIC null for numeric columns and only fills it for categoricals, so PSI is the drift knob
-# MAGIC that actually fires on numeric features like `amount`. If **any** monitored feature is
+# MAGIC that fires on numeric features like `amount`. If **any** monitored feature is
 # MAGIC in violation, `is_drift_violated` is set.
 
 # COMMAND ----------
@@ -99,7 +99,7 @@ num_violation_windows = int(dbutils.widgets.get("num_violation_windows"))
 drift_metrics_table = f"{table_name_under_monitor}_drift_metrics"
 
 # If the monitor hasn't produced drift metrics yet (first run, or never refreshed), there is
-# nothing to evaluate, so report "not violated" and the job simply doesn't retrain.
+# nothing to evaluate, so report "not violated" and the job does not retrain.
 if not spark.catalog.tableExists(drift_metrics_table):
     print(f"{drift_metrics_table} does not exist yet; treating as not violated.")
     dbutils.jobs.taskValues.set("is_drift_violated", False)

@@ -97,7 +97,7 @@ empty_schema = T.StructType(
 )
 
 # The AI Gateway inference table starts as a placeholder (only databricks_request_id) and
-# only gains its real columns once a request/response has actually been logged. Treat a
+# only gains its real columns once a request/response has been logged. Treat a
 # missing table OR a not-yet-populated schema the same way: write an empty table and exit.
 required_cols = {"status_code", "response", "client_request_id", "request_time", "served_entity_id"}
 payload_cols = (

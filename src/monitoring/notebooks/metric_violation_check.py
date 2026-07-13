@@ -79,7 +79,7 @@ num_violation_windows = int(dbutils.widgets.get("num_violation_windows"))
 profile_metrics_table = f"{table_name_under_monitor}_profile_metrics"
 
 # If the monitor hasn't produced metrics yet (first run, or never refreshed), there is
-# nothing to evaluate, so report "not violated" and the job simply doesn't retrain.
+# nothing to evaluate, so report "not violated" and the job does not retrain.
 if not spark.catalog.tableExists(profile_metrics_table):
     print(f"{profile_metrics_table} does not exist yet; treating as not violated.")
     dbutils.jobs.taskValues.set("is_metric_violated", False)
