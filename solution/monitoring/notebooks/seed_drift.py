@@ -4,22 +4,20 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
-# MAGIC A small, safe helper so you can *see* feature drift inside the workshop instead of
-# MAGIC waiting days for it to happen naturally. The batch inference table is already fully
-# MAGIC scored, so instead of running the model again this takes a sample of existing
-# MAGIC predictions, inflates the amount-driven features, and stamps them with **now**, so the
-# MAGIC most recent monitor window looks different from the previous one.
+# MAGIC Demo helper to make feature drift visible during the session instead of waiting for it
+# MAGIC to occur naturally. The batch inference table is already scored, so this samples
+# MAGIC existing predictions, inflates the amount-driven features, and stamps them with the
+# MAGIC current time, so the most recent monitor window differs from the previous one.
 # MAGIC
-# MAGIC It writes to **your own** tables (the per-user `dev_<you>_fraud` schema), exactly like
-# MAGIC batch inference, so every attendee can run it independently:
-# MAGIC - appends the drifted batch to `dev.<you>_fraud.fraud_predictions`
-# MAGIC - refreshes your `batch_monitor`, so `_drift_metrics` picks up the spike
+# MAGIC It writes to the per-user `dev_<you>_fraud` schema, so each attendee runs it
+# MAGIC independently:
 # MAGIC
-# MAGIC After it finishes, re-run `monitoring.py` section 4 to see the `amount` drift, and run
-# MAGIC `feature_drift_check.py` to watch it return `is_drift_violated = True`.
+# MAGIC - appends the drifted batch to `dev.<you>_fraud.fraud_predictions`;
+# MAGIC - refreshes `batch_monitor` so `_drift_metrics` reflects the change.
 # MAGIC
-# MAGIC Run **after** you have run batch inference at least once (so there is a normal baseline
-# MAGIC in the earlier windows to drift away from) and the monitor exists.
+# MAGIC Prerequisites: run batch inference at least once (to establish a baseline) and ensure
+# MAGIC the monitor exists. Afterwards, re-run `monitoring.py` section 4 to view the `amount`
+# MAGIC drift and `feature_drift_check.py` to confirm `is_drift_violated = True`.
 # MAGIC
 # MAGIC Docs: [Batch inference with Feature Engineering](https://learn.microsoft.com/azure/databricks/machine-learning/feature-store/score-batch)
 
@@ -56,16 +54,16 @@ print(f"Drift: amount x{amount_multiplier} on {num_rows} rows, stamped now")
 
 # MAGIC %md
 # MAGIC ## 1. Build a drifted batch from already-scored rows
-# MAGIC The batch inference table is already fully scored with every feature column, so we do
-# MAGIC not re-run the model. Take a sample of existing predictions, inflate the amount-driven
+# MAGIC The batch inference table is already fully scored with every feature column, so the
+# MAGIC model is not re-run. Take a sample of existing predictions, inflate the amount-driven
 # MAGIC features (`amount` and the two ratios that scale with it), and stamp them with the
-# MAGIC current time so they land in the newest monitor window. This is the "world changed" we
-# MAGIC want the monitor to catch.
+# MAGIC current time so they land in the newest monitor window. This simulates a change in the
+# MAGIC input distribution for the monitor to catch.
 
 # COMMAND ----------
 
 # Build the drifted sample by selecting from the same table (keeps the schema identical, no
-# mergeSchema needed) and scaling the amount-driven features. We stage it to a separate table
+# mergeSchema needed) and scaling the amount-driven features. Stage it to a separate table
 # first so the append does not read from the table it is writing to; serverless does not allow
 # cache/checkpoint, and a staging table is the clean way to break that dependency.
 stage_table = f"{catalog_name}.{user_schema}._seed_drift_stage"

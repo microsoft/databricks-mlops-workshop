@@ -146,13 +146,13 @@ The same feature definitions are used at training and serving, so there is no tr
 
 ### Proposed models (progression)
 
-We deliberately keep models simple so the focus stays on the **MLOps lifecycle**, not
-hyper-tuning. We train a progression and let MLflow pick a champion:
+The models are kept deliberately simple so the focus stays on the **MLOps lifecycle**, not
+hyper-tuning. A short progression is trained and MLflow selects a champion:
 
 | Stage | Model | Why |
 |---|---|---|
-| Trap | **Random Forest** (raw imbalanced data) | Shows the imbalance trap: ~99.8% accuracy but recall ≈ 0 (flags no fraud) |
-| Fixed / registered | **Random Forest** (balanced training data) | Keep all fraud + down-sample non-fraud so the model actually catches fraud; evaluated on the real imbalanced test set. This is the version registered + promoted |
+| Baseline | **Random Forest** (raw imbalanced data) | Establishes the imbalance problem: ~99.8% accuracy but recall &asymp; 0 (flags no fraud) |
+| Balanced (registered) | **Random Forest** (balanced training data) | Keeps all fraud and down-samples non-fraud so the model detects fraud; evaluated on the real imbalanced test set. This version is registered and promoted |
 
 Class imbalance is handled by **balancing the training data** (keep every fraud row,
 down-sample non-fraud to a 1:1 ratio), not by class weights. The model is still evaluated on
@@ -161,7 +161,7 @@ trade-off this creates and why the decision threshold is a business choice.
 
 ### Evaluation metrics
 
-Accuracy is misleading on imbalanced data, so we track:
+Accuracy is misleading on imbalanced data, so the tracked metrics are:
 
 - **ROC-AUC**, the metric the promotion gate scores the model on.
 - **precision**, **recall**, **F1** (macro), and accuracy for context.
@@ -170,7 +170,7 @@ Accuracy is misleading on imbalanced data, so we track:
 
 ### How it maps to the workshop
 
-| Session | What we do with the model |
+| Session | Model activity |
 |---|---|
 | Model Development | Build features (Feature Store), train the progression, log to MLflow |
 | Governance | Govern the model registered during training; aliases, versioning + lineage |
@@ -181,18 +181,18 @@ Accuracy is misleading on imbalanced data, so we track:
 > **The Serving step is slow.** The deployment job (`fraud_deployment_job`) provisions a
 > **Lakebase online feature store**, publishes the `card_features`/`client_features` tables to
 > it, and builds a first-time serving endpoint, which typically takes **15-25 minutes**
-> end-to-end. It runs automatically when a new model version is registered; let it run while
-> you talk through the concepts. Once it's ready, run `deployment/model_deployment/notebooks/query_endpoint.py`
+> end-to-end. It runs automatically when a new model version is registered; allow it to
+> complete before running `deployment/model_deployment/notebooks/query_endpoint.py`
 > to score live transactions against the endpoint (this also seeds the online monitor's traffic).
 
 ---
 
-## How you work with this repo (developer workflow)
+## Developer workflow
 
 This repo is a **Declarative Automation Bundle** (formerly a Databricks Asset Bundle / DAB) with a
-`databricks.yml` at the root. You
-develop either **in the Databricks UI** or **in a local IDE**, commit to Git, and let
-**CI/CD** promote the bundle through environments. You don't edit prod directly.
+`databricks.yml` at the root. Development happens either **in the Databricks UI** or **in a
+local IDE**; changes are committed to Git, and **CI/CD** promotes the bundle through
+environments. Prod is never edited directly.
 
 ```mermaid
 flowchart LR
@@ -399,7 +399,7 @@ targets. CI/CD just picks the target, and the bundle does the rest.
 ## Data isolation: shared reads, personal writes
 
 Attendees **read** from shared medallion data but **write** to their **own** schema, so 20
-people never overwrite each other. This is wired through the bundle so it "just works" when
+people never overwrite each other. The bundle wires this up, so it applies automatically when
 each attendee clones the repo and deploys.
 
 > **Why a personal schema and not more medallion layers?** Medallion (bronze/silver/gold) and
@@ -407,7 +407,7 @@ each attendee clones the repo and deploys.
 > here:
 > - **Medallion** organises the *shared enterprise data* by quality. It's "a recommended best
 >   practice but not a requirement" and each layer lives in its own schema of a shared catalog
->   ([medallion docs](https://docs.databricks.com/aws/en/lakehouse/medallion)). Our shared
+>   ([medallion docs](https://docs.databricks.com/aws/en/lakehouse/medallion)). The shared
 >   `fraud_bronze/silver/gold` (including the gold `transactions_enriched`) is unchanged.
 > - **Personal schemas** isolate each *developer's own outputs* in dev. Databricks explicitly
 >   recommends "a personal schema per user, for example `dev_${user_name}`… This prevents
@@ -416,8 +416,8 @@ each attendee clones the repo and deploys.
 >
 > So each attendee still *reads* the shared medallion; their feature tables / model / predictions
 > are dev outputs that go in their personal `dev_<you>_fraud` schema. In **production** one
-> pipeline would instead write the feature tables to the shared schema. We don't sub-layer
-> the personal schema into bronze/silver/gold, since that's a shared-data concept, and doing so
+> pipeline would instead write the feature tables to the shared schema. The personal schema is
+> not sub-layered into bronze/silver/gold, since that is a shared-data concept, and doing so
 > per user would explode the schema count.
 
 **Shared, read-only** (instructor provisions once):

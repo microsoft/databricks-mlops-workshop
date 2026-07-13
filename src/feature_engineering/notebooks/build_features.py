@@ -5,7 +5,7 @@
 # MAGIC **Session:** Model Development & Experimentation
 # MAGIC
 # MAGIC Real-time scoring has to work for a brand-new transaction that isn't in any table
-# MAGIC yet, so we split features the way production systems do:
+# MAGIC yet, so features are split the way production systems do:
 # MAGIC
 # MAGIC 1. **Entity features:** slow-changing card and client attributes, looked up by key at
 # MAGIC    serving time. Published to the Unity Catalog Feature Store:
@@ -41,7 +41,7 @@ if not user_schema:
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
     user_schema = f"dev_{_short}_fraud"
 
-# Read from the shared gold source; write to your personal schema.
+# Read from the shared gold source; write to the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
 card_feature_table = f"{catalog_name}.{user_schema}.card_features"
 client_feature_table = f"{catalog_name}.{user_schema}.client_features"
@@ -59,20 +59,22 @@ enriched = spark.read.table(source_table)
 
 # MAGIC %md
 # MAGIC ## 1. Build the entity feature tables
-# MAGIC Slow-changing card and client attributes that exist before a transaction happens and
-# MAGIC can be looked up by key. One row per entity (deduplicated), keyed by `card_id` /
-# MAGIC `client_id`.
+# MAGIC
+# MAGIC Slow-changing card and client attributes that exist before a transaction happens, so
+# MAGIC they can be looked up by key at serve time:
+# MAGIC
+# MAGIC - `card_features`, one row per `card_id`: credit limit, cards issued.
+# MAGIC - `client_features`, one row per `client_id`: credit score, income, age.
 
 # COMMAND ----------
 
 # One row per entity (deduplicated), keyed by card_id / client_id. This is plain Spark
-# aggregation, so it is provided; publishing these to the Feature Store below is the step
-# you fill in.
-# For simplicity we take the card/client attributes from the single transactions_enriched
-# table, picking one value per entity with F.first. In the real world we would read them
-# from the entity dimension itself (the cards / users tables), because these attribute
-# values can change over time, so a per-transaction snapshot is arbitrary and the dimension
-# is the source of truth.
+# aggregation and is provided; publishing these to the Feature Store below is the exercise.
+# For simplicity the card/client attributes come from the single transactions_enriched
+# table, taking one value per entity with F.first. In production they would come from the
+# entity dimension itself (the cards / users tables), because these attribute values can
+# change over time, so a per-transaction snapshot is arbitrary and the dimension is the
+# source of truth.
 card_features = enriched.groupBy("card_id").agg(
     F.first("credit_limit", ignorenulls=True).cast("double").alias("credit_limit"),
     F.first("num_cards_issued", ignorenulls=True).cast("int").alias("num_cards_issued"),
@@ -88,10 +90,14 @@ client_features = enriched.groupBy("client_id").agg(
 
 # MAGIC %md
 # MAGIC ## 2. Publish the entity feature tables
-# MAGIC Write them to the Feature Store as primary-key tables so they can be looked up at
-# MAGIC training time and (after publishing to an online store) at serving time. Create on
-# MAGIC first run, merge on re-runs. Change Data Feed is enabled so the tables can sync to an
-# MAGIC online store later.
+# MAGIC
+# MAGIC Write them to the Feature Store as primary-key tables so they can be resolved by key:
+# MAGIC
+# MAGIC - at training time (offline join), and
+# MAGIC - at serving time, once published to an online store.
+# MAGIC
+# MAGIC Create on the first run, merge on re-runs. Change Data Feed is enabled so the tables can
+# MAGIC sync to an online store later.
 
 # COMMAND ----------
 
@@ -107,15 +113,18 @@ client_features = enriched.groupBy("client_id").agg(
 
 # MAGIC %md
 # MAGIC ## 3. Register the on-demand feature functions
+# MAGIC
 # MAGIC UC feature functions (Python UDFs) that compute transaction-derived features from the
-# MAGIC request payload at lookup/serving time, so they work for a transaction never seen
-# MAGIC before. Training and serving call the same functions (no skew).
+# MAGIC request payload itself, so:
+# MAGIC
+# MAGIC - they work for a transaction never seen before (nothing to look up);
+# MAGIC - training and serving call the same functions, so there is no skew.
 
 # COMMAND ----------
 
 # On-demand feature functions are UC Python UDFs. Training and serving call the same
-# functions, so there is no train/serve skew. Four of them are provided; you write the first
-# one (ff_is_night) to learn the pattern.
+# functions, so there is no train/serve skew. Four are provided; the first (ff_is_night) is
+# the exercise.
 schema_fqn = f"{catalog_name}.{user_schema}"
 
 # TODO: register the ff_is_night on-demand feature function as a UC Python UDF
@@ -173,8 +182,9 @@ $$
 
 # MAGIC %md
 # MAGIC ## 4. Document the feature tables (governance)
+# MAGIC
 # MAGIC Add column comments so the tables are self-describing in Catalog Explorer.
-# MAGIC (Instructor-provided, not part of the exercise.)
+# MAGIC Instructor-provided, not part of the exercise.
 
 # COMMAND ----------
 
@@ -193,6 +203,26 @@ for column, text in CARD_COMMENTS.items():
     spark.sql(f"ALTER TABLE {card_feature_table} ALTER COLUMN {column} COMMENT '{text}'")
 for column, text in CLIENT_COMMENTS.items():
     spark.sql(f"ALTER TABLE {client_feature_table} ALTER COLUMN {column} COMMENT '{text}'")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Production considerations
+# MAGIC
+# MAGIC This notebook makes two deliberate simplifications:
+# MAGIC
+# MAGIC - **Point-in-time correctness.** The feature tables have a primary key only (no
+# MAGIC   `timestamp_keys`), and the training-set `FeatureLookup`s set no `timestamp_lookup_key`,
+# MAGIC   so each transaction joins the entity's current attribute values rather than the values
+# MAGIC   as of the transaction time. For attributes that change over time (for example a credit
+# MAGIC   score), this risks label leakage. In production, make the feature tables time-series
+# MAGIC   tables (add a feature timestamp and `timestamp_keys=[...]`), carry `transaction_ts` on
+# MAGIC   the training spine, and set `timestamp_lookup_key="transaction_ts"` so each row joins the
+# MAGIC   value effective at its own time.
+# MAGIC - **Source of the entity attributes.** Here the card/client attributes are taken from the
+# MAGIC   flattened `transactions_enriched` table with `F.first`. In production, source them from
+# MAGIC   the entity dimension of record (the `cards` / `users` tables), which is authoritative,
+# MAGIC   carries history, and supports the point-in-time joins above.
 
 display(spark.read.table(card_feature_table).limit(10))
 display(spark.read.table(client_feature_table).limit(10))

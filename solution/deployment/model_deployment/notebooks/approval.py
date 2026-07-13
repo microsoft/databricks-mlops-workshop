@@ -9,7 +9,7 @@
 # MAGIC as the signal (the mechanism MLflow 3 deployment jobs use):
 # MAGIC
 # MAGIC - **dev** (`auto_approve=true`): the task sets the approval tag itself and passes, so
-# MAGIC   the whole loop runs unattended in class.
+# MAGIC   the whole loop runs unattended.
 # MAGIC - **staging / prod** (`auto_approve=false`): the task fails until a human reviews the
 # MAGIC   evaluation metrics on the model-version page and clicks **Approve** (which sets the
 # MAGIC   tag `<task-name>=Approved` and repairs the run). The task then passes and the run
@@ -44,8 +44,8 @@ from mlflow import MlflowClient
 
 client = MlflowClient(registry_uri="databricks-uc")
 
-# In dev we auto-approve: set the tag so this run (and the UI) reflect an approved state,
-# then pass. In staging/prod we require a human to have set the tag to "Approved".
+# In dev, auto-approve: set the tag so this run (and the UI) reflect an approved state, then
+# pass. In staging/prod, a human must have set the tag to "Approved".
 if auto_approve:
     client.set_model_version_tag(model_name, model_version, tag_name, "Approved")
     print(f"Auto-approved (dev): set {tag_name}=Approved on v{model_version}.")

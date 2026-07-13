@@ -4,21 +4,19 @@
 # MAGIC
 # MAGIC **Session:** Monitoring & Retraining
 # MAGIC
-# MAGIC **What this notebook is:** an automated job task (like `metric_violation_check.py`), not
-# MAGIC a lab you open. It runs headless inside the scheduled `retraining_job` and emits a
-# MAGIC true/false. Contrast `monitoring.py`, which is the human-facing dashboard that just
-# MAGIC *displays* the same drift numbers for a person to read.
+# MAGIC Automated task in the scheduled `retraining_job`. It reads the monitor's
+# MAGIC `..._drift_metrics` table, decides whether one or more features have drifted enough for
+# MAGIC long enough to act on, and publishes the boolean `is_drift_violated` as a task value. A
+# MAGIC `condition_task` reads that value and, with the quality check, decides whether to retrain.
 # MAGIC
-# MAGIC A sibling of `metric_violation_check.py`, but for **feature (data) drift** instead of
-# MAGIC model quality. It reads the monitor's `..._drift_metrics` table and decides whether the
-# MAGIC input distribution of one or more features has shifted enough, for long enough, to act
-# MAGIC on. It publishes the boolean `is_drift_violated` as a job task value; a `condition_task`
-# MAGIC in the retraining job reads it and (together with the quality check) decides whether to
-# MAGIC retrain.
+# MAGIC Related notebooks:
 # MAGIC
-# MAGIC Why a separate notebook from the quality check: quality metrics live in
-# MAGIC `..._profile_metrics` as structs keyed by `:table`/`model_version`, while drift lives in
-# MAGIC `..._drift_metrics` with one row **per feature column**. Different table, different shape.
+# MAGIC - `metric_violation_check.py`: the same pattern for model quality (`..._profile_metrics`).
+# MAGIC - `monitoring.py`: the interactive dashboard that displays these metrics.
+# MAGIC
+# MAGIC Quality and drift live in separate tables: `..._profile_metrics` holds quality metrics
+# MAGIC as structs keyed by `:table` / `model_version`, while `..._drift_metrics` holds one row
+# MAGIC per feature column.
 # MAGIC
 # MAGIC Parameters:
 # MAGIC - `table_name_under_monitor`: the inference table the monitor profiles.
@@ -28,12 +26,12 @@
 # MAGIC - `drift_violation_threshold`: drift is a "higher is worse" metric, so a value **above**
 # MAGIC   this counts as a violation.
 # MAGIC - `num_evaluation_windows` / `num_violation_windows`: how many recent windows to look at,
-# MAGIC   and how many must be in violation before we act.
+# MAGIC   and how many must be in violation before action is taken.
 # MAGIC
-# MAGIC A note on acting on feature drift: retraining only helps once **fresh labels** arrive, so
-# MAGIC in production feature drift usually raises an **alert** first, and the label-based quality
-# MAGIC check is what actually gates retraining. Here we wire drift into the same retraining
-# MAGIC trigger (OR-ed with the quality check) to show the mechanism end-to-end.
+# MAGIC Note on acting on feature drift: retraining only helps once fresh labels arrive, so in
+# MAGIC production feature drift typically raises an alert first, and the label-based quality
+# MAGIC check gates retraining. Here drift is wired into the same trigger (OR-ed with the
+# MAGIC quality check) to demonstrate the mechanism end to end.
 # MAGIC
 # MAGIC Docs: [Monitor metric tables](https://learn.microsoft.com/azure/databricks/lakehouse-monitoring/monitor-output)
 
@@ -62,7 +60,7 @@ dbutils.widgets.text("num_violation_windows", "1", label="Windows that must viol
 # MAGIC ## The violation query
 # MAGIC
 # MAGIC Lakehouse Monitoring writes a `<table>_drift_metrics` Delta table with one row per
-# MAGIC column, per time `window`, per drift comparison. For each monitored feature we look at
+# MAGIC column, per time `window`, per drift comparison. For each monitored feature, it checks
 # MAGIC the whole-population rows and ask: of the last `num_evaluation_windows` windows, did at
 # MAGIC least `num_violation_windows` have `drift_metric` **above** `drift_violation_threshold`,
 # MAGIC and is the most recent window also above it?
@@ -70,11 +68,11 @@ dbutils.widgets.text("num_violation_windows", "1", label="Windows that must viol
 # MAGIC The row filters mean:
 # MAGIC - `column_name` is one of the monitored features (not `:table`),
 # MAGIC - `slice_key IS NULL` -> the whole population, not a single data slice,
-# MAGIC - `drift_type = "CONSECUTIVE"` -> window-over-window drift (we have no baseline table; a
+# MAGIC - `drift_type = "CONSECUTIVE"` -> window-over-window drift (there is no baseline table; a
 # MAGIC   baseline-vs-training comparison would use `drift_type = "BASELINE"`).
 # MAGIC
 # MAGIC The table can carry more than one row per window (one per `model_version` plus a `*`
-# MAGIC aggregate), so we take the max metric per window to get one value each.
+# MAGIC aggregate), so the max metric per window is used to get one value each.
 # MAGIC
 # MAGIC `population_stability_index` (PSI) measures how far a feature's distribution has moved
 # MAGIC between the previous window and the current one: both windows are cut into the same
@@ -82,10 +80,10 @@ dbutils.widgets.text("num_violation_windows", "1", label="Windows that must viol
 # MAGIC two distributions match and grows as they pull apart, so "higher is worse". A common
 # MAGIC reading is >0.1 a moderate shift and >0.25 a significant shift.
 # MAGIC
-# MAGIC We threshold PSI (not `js_distance`) because Lakehouse Monitoring leaves `js_distance`
+# MAGIC PSI is thresholded (not `js_distance`) because Lakehouse Monitoring leaves `js_distance`
 # MAGIC null for numeric columns and only fills it for categoricals, so PSI is the drift knob
-# MAGIC that actually fires on numeric features like `amount`. If **any** monitored feature is
-# MAGIC in violation, we flag `is_drift_violated`.
+# MAGIC that fires on numeric features like `amount`. If **any** monitored feature is
+# MAGIC in violation, `is_drift_violated` is set.
 
 # COMMAND ----------
 
@@ -101,7 +99,7 @@ num_violation_windows = int(dbutils.widgets.get("num_violation_windows"))
 drift_metrics_table = f"{table_name_under_monitor}_drift_metrics"
 
 # If the monitor hasn't produced drift metrics yet (first run, or never refreshed), there is
-# nothing to evaluate, so report "not violated" and the job simply doesn't retrain.
+# nothing to evaluate, so report "not violated" and the job does not retrain.
 if not spark.catalog.tableExists(drift_metrics_table):
     print(f"{drift_metrics_table} does not exist yet; treating as not violated.")
     dbutils.jobs.taskValues.set("is_drift_violated", False)
@@ -131,8 +129,8 @@ for feature in features_to_monitor:
     if not recent:
         continue
     # Violation: at least num_violation_windows above the threshold AND the most recent window
-    # is also above it (so we don't act on a spike that has already settled). Drift is "higher
-    # is worse", so we compare with >.
+    # is also above it (so a spike that has already settled is ignored). Drift is "higher is
+    # worse", so the comparison uses >.
     windows_in_violation = sum(1 for row in recent if row["metric_value"] > drift_violation_threshold)
     latest_in_violation = recent[0]["metric_value"] > drift_violation_threshold
     if windows_in_violation >= num_violation_windows and latest_in_violation:
