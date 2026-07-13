@@ -76,11 +76,16 @@ dbutils.widgets.text("num_violation_windows", "1", label="Windows that must viol
 # MAGIC The table can carry more than one row per window (one per `model_version` plus a `*`
 # MAGIC aggregate), so we take the max metric per window to get one value each.
 # MAGIC
-# MAGIC `population_stability_index` (PSI) is populated for numeric features (Lakehouse
-# MAGIC Monitoring leaves `js_distance` null for numeric columns and only fills it for
-# MAGIC categoricals), so PSI is the drift knob that actually fires on features like `amount`.
-# MAGIC A common reading is >0.1 moderate, >0.25 significant. If **any** monitored feature is in
-# MAGIC violation, we flag `is_drift_violated`.
+# MAGIC `population_stability_index` (PSI) measures how far a feature's distribution has moved
+# MAGIC between the previous window and the current one: both windows are cut into the same
+# MAGIC bins, and PSI sums `(curr% - prev%) * ln(curr% / prev%)` over the bins. It is 0 when the
+# MAGIC two distributions match and grows as they pull apart, so "higher is worse". A common
+# MAGIC reading is >0.1 a moderate shift and >0.25 a significant shift.
+# MAGIC
+# MAGIC We threshold PSI (not `js_distance`) because Lakehouse Monitoring leaves `js_distance`
+# MAGIC null for numeric columns and only fills it for categoricals, so PSI is the drift knob
+# MAGIC that actually fires on numeric features like `amount`. If **any** monitored feature is
+# MAGIC in violation, we flag `is_drift_violated`.
 
 # COMMAND ----------
 
