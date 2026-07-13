@@ -26,10 +26,19 @@ dbutils.widgets.text("model_version", "")
 dbutils.widgets.text("catalog_name", "adoption_workshop")
 dbutils.widgets.text("ml_schema", "")
 
-uc_model_name = dbutils.widgets.get("model_name")
-model_version = dbutils.widgets.get("model_version")
+uc_model_name = dbutils.widgets.get("model_name").strip()
+model_version = dbutils.widgets.get("model_version").strip()
 catalog_name = dbutils.widgets.get("catalog_name")
 ml_schema = dbutils.widgets.get("ml_schema")
+
+# Fail fast on a half-configured deployment job: model_name and model_version are injected
+# together. Both present = job; both empty = interactive run (derived below). Exactly one
+# present is a misconfiguration that would silently gate the wrong model or version.
+if bool(uc_model_name) != bool(model_version):
+    raise ValueError(
+        "Only one of model_name / model_version was provided. Pass both (deployment job) "
+        "or neither (interactive run)."
+    )
 
 from pyspark.sql import functions as F
 
