@@ -23,6 +23,14 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install -q --upgrade databricks-sdk
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
 dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("amount_multiplier", "6.0", label="Scale amount by this to force drift")
