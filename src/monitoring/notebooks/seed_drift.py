@@ -39,7 +39,7 @@ ml_schema = dbutils.widgets.get("ml_schema")
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud_ml"
 
 amount_multiplier = float(dbutils.widgets.get("amount_multiplier"))
 num_rows = int(dbutils.widgets.get("num_rows"))
