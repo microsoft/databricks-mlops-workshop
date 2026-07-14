@@ -85,11 +85,21 @@ print(f"Evaluating {uc_model_name} version {model_version} on '{metric}' (floor 
 
 # COMMAND ----------
 
+import os
+
 import mlflow
 from databricks.feature_engineering import FeatureEngineeringClient
 from mlflow.tracking import MlflowClient
 from pyspark.sql import functions as F
 from sklearn.metrics import roc_auc_score
+
+# Serverless workaround: fe.score_batch runs the model via mlflow.pyfunc.spark_udf, which on
+# serverless ships the model through the DBConnect addArtifact path and then version-checks the
+# UDF sandbox with Version(runtime_version). The serverless sandbox reports a non-PEP440 tag
+# (e.g. '18.x-photon-scala2'), so that parse throws InvalidVersion. This mlflow flag skips the
+# addArtifact path and has each executor pull the model straight from the artifact store,
+# avoiding the broken check. Remove once the serverless sandbox reports a parseable version.
+os.environ["_MLFLOW_SPARK_UDF_SERVERLESS_SKIP_DBCONNECT_ARTIFACT"] = "true"
 
 mlflow.set_registry_uri("databricks-uc")
 client = MlflowClient()
