@@ -107,6 +107,9 @@ jobs:
       DATABRICKS_AUTH_TYPE: github-oidc
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      # staging is mode: production, so its jobs run_as the service principal. Feed the SP
+      # application id (same client id used to authenticate) to the bundle variable.
+      BUNDLE_VAR_cicd_service_principal: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@v0.9.0
