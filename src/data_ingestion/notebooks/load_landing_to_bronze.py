@@ -28,7 +28,7 @@ if not logger.handlers:
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog", "adoption_workshop")
+dbutils.widgets.text("catalog", "dev")
 dbutils.widgets.text("bronze_schema", "fraud_bronze")
 dbutils.widgets.text("landing_catalog", "dev")
 dbutils.widgets.text("landing_schema", "fraud_landing")

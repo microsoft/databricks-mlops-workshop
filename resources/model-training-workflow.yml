@@ -8,7 +8,6 @@ resources:
       name: ${bundle.target}-mlops-workshop-training
       tasks:
         - task_key: train
-          existing_cluster_id: ${var.shared_cluster_id}
           notebook_task:
             notebook_path: ../${var.code_root}/training/notebooks/training.py
             base_parameters:

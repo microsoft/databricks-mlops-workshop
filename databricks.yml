@@ -7,10 +7,6 @@ bundle:
   engine: direct
 
 variables:
-  shared_cluster_id:
-    description: Existing shared cluster used by workshop jobs.
-    lookup:
-      cluster: "Shared Compute - ML Workshop"
   experiment_name:
     description: MLflow experiment for model training runs (per-user path).
     default: /Users/${workspace.current_user.userName}/${bundle.target}-mlops-workshop-fraud
@@ -21,7 +17,7 @@ variables:
     default: fraud_detection
   catalog_name:
     description: Unity Catalog catalog for the environment (dev/staging/prod).
-    default: adoption_workshop
+    default: dev
   ml_schema:
     description: >-
       ML outputs schema (feature tables, model, predictions, monitoring). Resolves to the
@@ -102,8 +98,7 @@ targets:
     mode: development
     default: true
     variables:
-      # Temporary override to adoption_workshop for the workshop; revert to dev later.
-      catalog_name: adoption_workshop
+      catalog_name: dev
     # workspace:
     #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
 

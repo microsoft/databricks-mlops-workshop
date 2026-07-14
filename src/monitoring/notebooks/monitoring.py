@@ -23,7 +23,16 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "adoption_workshop")
+# MAGIC %pip install -q --upgrade databricks-sdk
+# MAGIC
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
+dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("ml_schema", "")
 
 catalog_name = dbutils.widgets.get("catalog_name")
