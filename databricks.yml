@@ -20,9 +20,9 @@ variables:
     default: dev
   ml_schema:
     description: >-
-      ML outputs schema (feature tables, model, predictions, monitoring). Resolves to the
-      fraud_ml schema resource: development mode prefixes the base `fraud_ml` to
-      `dev_<user>_fraud_ml` (per-user); the clean dev/staging/prod targets use the shared `fraud_ml`.
+      Resolved name of the ML schema passed to notebooks. The clean dev/staging/prod targets
+      use the shared `fraud_ml`; the personal target overrides the schema name to `fraud`, so
+      development mode gives each attendee a `dev_<you>_fraud` sandbox.
     default: ${resources.schemas.fraud_ml.name}
   gold_schema:
     description: Shared, read-only gold schema holding the source consumption tables.
@@ -81,13 +81,14 @@ include:
 # landing volume). Declared ONLY on the clean (non-development) targets so that:
 #   * a `bundle deploy -t personal` (development mode) NEVER creates them. Attendees read
 #     the shared, instructor-seeded schemas and write only to their own
-#     `dev_<user>_fraud_ml` (fraud_ml). No empty per-user copies.
+#     `dev_<user>_fraud` sandbox. No empty per-user copies.
 #   * a clean deploy (`-t dev` / `-t staging` / `-t prod`, no name-prefixing) provisions
 #     them literally as the shared `fraud_landing` / `fraud_bronze` / `fraud_silver` /
 #     `fraud_gold` + volume in that target's catalog.
-# `fraud_gold` is the shared source that everyone reads; the per-user `fraud_ml`
-# schema is separately named `fraud_ml` (ML outputs), so there is no collision on the clean
-# targets.
+# `fraud_gold` is the shared source that everyone reads; the shared ML schema is separately
+# named `fraud_ml` (ML outputs). On the personal target each attendee instead gets a general
+# `dev_<user>_fraud` sandbox (base name overridden to `fraud`), so there is no collision on
+# the clean targets.
 # These resources only create the empty schemas/volume; the actual data load
 # (upload + landing->bronze->silver) still runs via `data_ingestion_job`.
 
@@ -105,6 +106,13 @@ targets:
     default: true
     variables:
       catalog_name: dev
+    # The shared ML schema is `fraud_ml`; on personal each attendee gets a general
+    # `dev_<you>_fraud` sandbox instead, so override just the schema name to `fraud`
+    # (development mode then prefixes it to dev_<you>_fraud).
+    resources:
+      schemas:
+        fraud_ml:
+          name: fraud
     # workspace:
     #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
 

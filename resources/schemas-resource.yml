@@ -1,15 +1,14 @@
-# Per-user ML workspace schema. Declared with a BASE name (`fraud_ml`); in development
-# mode the bundle prefixes it to `dev_<user>_fraud_ml`, giving each user their own schema
-# for the ML artifacts they produce (feature tables, model, predictions, monitoring).
-# In production mode (no prefix) it resolves to the shared `fraud_ml`. Reads always come
-# from the shared medallion schemas (fraud_bronze / fraud_silver / fraud_gold). Jobs
-# reference ${resources.schemas.fraud_ml.name} so notebooks write to exactly this
-# schema. The layer ("gold") is intentionally NOT in the name: this schema holds ML
-# outputs (model, predictions, monitoring), not a mirror of the shared gold layer.
+# The ML schema. On the clean dev/staging/prod targets it is the shared `fraud_ml`, sitting
+# alongside the medallion schemas (fraud_landing / fraud_bronze / fraud_silver / fraud_gold).
+# The personal target overrides the name to `fraud` (see databricks.yml), and development mode
+# prefixes it, so each attendee gets a private `dev_<you>_fraud` sandbox they can use for
+# anything, not just ML outputs. Reads always come from the shared medallion schemas; jobs
+# pass ${resources.schemas.fraud_ml.name} so notebooks write to exactly the schema the bundle
+# created for that target.
 # Docs: Bundle deployment modes (dev prefixing) https://learn.microsoft.com/azure/databricks/dev-tools/bundles/deployment-modes
 resources:
   schemas:
     fraud_ml:
       catalog_name: ${var.catalog_name}
       name: fraud_ml
-      comment: Per-user ML outputs (feature tables, model, predictions, monitoring). Shared in prod.
+      comment: Shared ML outputs (fraud_ml) on clean targets; a general per-attendee sandbox (dev_<you>_fraud) on personal.
