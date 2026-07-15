@@ -4,7 +4,7 @@
 resources:
   jobs:
     batch_inference_job:
-      name: ${bundle.target}-mlops-workshop-batch-inference
+      name: ${bundle.target}-databricks-mlops-workshop-batch-inference
       tasks:
         - task_key: batch_inference
           notebook_task:

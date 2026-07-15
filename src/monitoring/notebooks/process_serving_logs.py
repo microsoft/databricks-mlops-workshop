@@ -227,10 +227,12 @@ online = (
     )
 )
 
+# -------------------- TODO --------------------
 # TODO: write the online inference table so the online monitor can read it
 # HINT: online.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(online_table)
 # HINT: overwrite (not append): this notebook rebuilds the table from the payloads each run.
 # <-- Your code here
+# ----------------------------------------------
 
 # COMMAND ----------
 

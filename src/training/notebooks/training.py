@@ -68,7 +68,7 @@ client_feature_table = f"{catalog_name}.{ml_schema}.client_features"
 # where the experiment/model widgets may be empty.
 current_user = spark.range(1).select(F.current_user()).first()[0]
 experiment_name = (
-    dbutils.widgets.get("experiment_name") or f"/Users/{current_user}/mlops-workshop-fraud"
+    dbutils.widgets.get("experiment_name") or f"/Users/{current_user}/databricks-mlops-workshop"
 )
 model_name = dbutils.widgets.get("model_name")
 # Accept either a bare name (prepend catalog + ml_schema) or an already-qualified 3-level name.
@@ -208,6 +208,7 @@ feature_functions = [
     ),
 ]
 
+# -------------------- TODO --------------------
 # TODO: look up the entity features and assemble the training set
 # HINT: FeatureLookup(table_name=card_feature_table, lookup_key="card_id",
 # HINT:   feature_names=["credit_limit", "num_cards_issued"]); same for the client table
@@ -217,6 +218,7 @@ feature_functions = [
 # HINT: exclude the keys and raw function inputs so the model only sees features:
 # HINT:   transaction_id, card_id, client_id, mcc, use_chip.
 # <-- Your code here
+# ----------------------------------------------
 
 # Load into pandas and do a standard stratified train/test split (provided: this is ordinary
 # scikit-learn, not the MLOps concept this lab is about).
@@ -316,6 +318,8 @@ with mlflow.start_run(run_name="rf_balanced") as run:
     # Package with feature metadata + an inferred signature/input example (required for
     # safe serving) and register to Unity Catalog in one call. The classifier is wrapped so
     # the served model returns a fraud probability (score), not a hard class.
+
+    # -------------------- TODO --------------------
     # TODO: log and register the model to Unity Catalog with its feature metadata
     # HINT: fe.log_model packages the model with the training_set's feature lookups (so serving
     # HINT:   reproduces the same features) and registers it to UC in a single call.
@@ -323,6 +327,7 @@ with mlflow.start_run(run_name="rf_balanced") as run:
     # HINT:   flavor=mlflow.pyfunc, training_set=training_set,
     # HINT:   registered_model_name=uc_model_name, infer_input_example=True)
     # <-- Your code here
+    # ----------------------------------------------
 
     # MLflow 3: surface the eval metrics on the LoggedModel (and thus the UC model-version
     # page across workspaces), not only on the run.

@@ -117,12 +117,14 @@ client_features = enriched.groupBy("client_id").agg(
 # COMMAND ----------
 
 
+# -------------------- TODO --------------------
 # TODO: create the feature tables (first run) or merge into them (re-runs)
 # HINT: use the FeatureEngineeringClient `fe`, primary_keys=["card_id"] / ["client_id"].
 # HINT: fe.create_table(name=..., primary_keys=..., df=..., description=...) creates it.
 # HINT: if it already exists, fe.write_table(name=..., df=..., mode="merge").
 # HINT: enable Change Data Feed (delta.enableChangeDataFeed=true) so it can publish online.
 # <-- Your code here
+# ----------------------------------------------
 
 # COMMAND ----------
 
@@ -142,11 +144,13 @@ client_features = enriched.groupBy("client_id").agg(
 # the exercise.
 schema_fqn = f"{catalog_name}.{ml_schema}"
 
+# -------------------- TODO --------------------
 # TODO: register the ff_is_night on-demand feature function as a UC Python UDF
 # HINT: CREATE OR REPLACE FUNCTION {schema_fqn}.ff_is_night(transaction_hour INT) RETURNS BOOLEAN
 # HINT:   LANGUAGE PYTHON AS $$ <python body that returns a value> $$ (use spark.sql(f"""...""")).
 # HINT: is_night(hour) -> hour is not None and (hour < 6 or hour >= 22).
 # <-- Your code here
+# ----------------------------------------------
 
 # The remaining on-demand functions (provided).
 spark.sql(f"""

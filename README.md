@@ -178,7 +178,7 @@ Accuracy is misleading on imbalanced data, so the tracked metrics are:
 | Serving | Deploy champion via the deployment job; test the endpoint with `query_endpoint` |
 | Monitoring | Batch-score to an inference table; watch drift + precision/recall; trigger retrain |
 
-> **The Serving step is slow.** The deployment job (`fraud_deployment_job`) provisions a
+> **The Serving step is slow.** The deployment job (`deployment_job`) provisions a
 > **Lakebase online feature store**, publishes the `card_features`/`client_features` tables to
 > it, and builds a first-time serving endpoint, which typically takes **15-25 minutes**
 > end-to-end. It runs automatically when a new model version is registered; allow it to

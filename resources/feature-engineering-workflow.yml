@@ -6,7 +6,7 @@
 resources:
   jobs:
     feature_engineering_job:
-      name: ${bundle.target}-mlops-workshop-feature-engineering
+      name: ${bundle.target}-databricks-mlops-workshop-feature-engineering
       tasks:
         - task_key: build_features
           notebook_task:

@@ -17,8 +17,8 @@
 # Docs: MLflow 3 deployment jobs https://learn.microsoft.com/azure/databricks/mlflow/deployment-job
 resources:
   jobs:
-    fraud_deployment_job:
-      name: ${bundle.target}-mlops-workshop-deployment-job
+    deployment_job:
+      name: ${bundle.target}-databricks-mlops-workshop-deployment-job
       max_concurrent_runs: 1
       queue:
         enabled: true

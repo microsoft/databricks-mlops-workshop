@@ -3,13 +3,13 @@
 # Docs: Declarative Automation Bundles https://learn.microsoft.com/azure/databricks/dev-tools/bundles/
 #       Settings & targets https://learn.microsoft.com/azure/databricks/dev-tools/bundles/settings
 bundle:
-  name: mlops_workshop
+  name: databricks_mlops_workshop
   engine: direct
 
 variables:
   experiment_name:
     description: MLflow experiment for model training runs (per-user path).
-    default: /Users/${workspace.current_user.userName}/${bundle.target}-mlops-workshop-fraud
+    default: /Users/${workspace.current_user.userName}/${bundle.target}-databricks-mlops-workshop
   model_name:
     description: >-
       Bare (unqualified) registered model name. Notebooks prepend catalog_name + ml_schema
@@ -169,4 +169,4 @@ targets:
       # deployed. Use a dedicated (non-/Shared) folder: /Shared is writable by ALL workspace
       # users, so anyone could tamper with prod code. In a real prod you would deploy as a
       # service principal and restrict write ACLs on this folder to that identity.
-      root_path: /Workspace/mlops-workshop/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/databricks-mlops-workshop/.bundle/${bundle.name}/${bundle.target}

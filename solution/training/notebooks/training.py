@@ -68,7 +68,7 @@ client_feature_table = f"{catalog_name}.{ml_schema}.client_features"
 # where the experiment/model widgets may be empty.
 current_user = spark.range(1).select(F.current_user()).first()[0]
 experiment_name = (
-    dbutils.widgets.get("experiment_name") or f"/Users/{current_user}/mlops-workshop-fraud"
+    dbutils.widgets.get("experiment_name") or f"/Users/{current_user}/databricks-mlops-workshop"
 )
 model_name = dbutils.widgets.get("model_name")
 # Accept either a bare name (prepend catalog + ml_schema) or an already-qualified 3-level name.

@@ -6,7 +6,7 @@
 resources:
   jobs:
     data_ingestion_job:
-      name: ${bundle.target}-mlops-workshop-data-ingestion
+      name: ${bundle.target}-databricks-mlops-workshop-data-ingestion
       tasks:
         - task_key: landing_to_bronze
           notebook_task:
