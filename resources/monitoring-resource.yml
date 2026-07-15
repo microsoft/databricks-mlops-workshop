@@ -26,6 +26,10 @@ resources:
     # model quality (accuracy/precision/recall/f1) as well as drift.
     batch_monitor:
       table_name: ${var.catalog_name}.${resources.schemas.fraud_ml.name}.fraud_predictions
+      # Drift baseline = the validation split scored by the champion (written by batch_inference).
+      # Databricks recommends the model's train/validation data as the reference distribution, so
+      # drift is measured against what the model was validated on, not just window-to-window change.
+      baseline_table_name: ${var.catalog_name}.${resources.schemas.fraud_ml.name}.fraud_predictions_baseline
       output_schema_name: ${var.catalog_name}.${resources.schemas.fraud_ml.name}
       assets_dir: /Workspace/Users/${workspace.current_user.userName}/lakehouse_monitoring
       inference_log:
