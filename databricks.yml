@@ -7,10 +7,6 @@ bundle:
   engine: direct
 
 variables:
-  shared_cluster_id:
-    description: Existing shared cluster used by workshop jobs.
-    lookup:
-      cluster: "Shared Compute - ML Workshop"
   experiment_name:
     description: MLflow experiment for model training runs (per-user path).
     default: /Users/${workspace.current_user.userName}/${bundle.target}-mlops-workshop-fraud
@@ -21,7 +17,7 @@ variables:
     default: fraud_detection
   catalog_name:
     description: Unity Catalog catalog for the environment (dev/staging/prod).
-    default: adoption_workshop
+    default: dev
   ml_schema:
     description: >-
       ML outputs schema (feature tables, model, predictions, monitoring). Resolves to the
@@ -54,6 +50,12 @@ variables:
       notebook_path is `../${var.code_root}/...`, so the two trees must mirror each other
       (the generator guarantees this).
     default: src
+  cicd_service_principal:
+    description: >-
+      Application (client) ID of the CI/CD service principal that deploys and runs the clean
+      shared targets. CI supplies the real value (via --var or BUNDLE_VAR_cicd_service_principal)
+      when deploying staging/prod. Empty by default so the personal target is unaffected.
+    default: ""
 
 include:
   # All DAB resources (jobs, models, experiments, monitors) live in ./resources.
@@ -102,8 +104,7 @@ targets:
     mode: development
     default: true
     variables:
-      # Temporary override to adoption_workshop for the workshop; revert to dev later.
-      catalog_name: adoption_workshop
+      catalog_name: dev
     # workspace:
     #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
 
@@ -140,13 +141,20 @@ targets:
     #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
 
   staging:
+    mode: production
+    run_as:
+      service_principal_name: ${var.cicd_service_principal}
     variables:
       catalog_name: staging
       auto_approve: "false"
       code_root: solution
     resources: *shared_infra
-    # workspace:
-    #   host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
+    workspace:
+      # host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net  # add your workspace URL if deploying from a local CLI
+      # Production mode needs a fixed, non-user-scoped root_path so exactly one copy is
+      # deployed and it is not tied to the deploying user. CI deploys and runs this target as
+      # the cicd_service_principal.
+      root_path: /Workspace/mlops-workshop/.bundle/${bundle.name}/${bundle.target}
 
   prod:
     mode: production

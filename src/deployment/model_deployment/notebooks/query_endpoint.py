@@ -19,7 +19,7 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "adoption_workshop")
+dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("gold_schema", "fraud_gold")
 dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("num_requests", "50")
@@ -35,7 +35,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud_ml"
 
 # One endpoint per user, named after the personal schema (matches the deployment job).
 endpoint_name = f"{ml_schema}_fraud"

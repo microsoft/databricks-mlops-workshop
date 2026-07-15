@@ -23,7 +23,23 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "adoption_workshop")
+# MAGIC %md
+# MAGIC ## Setup
+# MAGIC Install the Feature Engineering client so `score_batch` can resolve the feature
+# MAGIC lookups the model was trained with (no train/serve skew).
+
+# COMMAND ----------
+
+# MAGIC %pip install -q "mlflow>=3.0" --upgrade
+# MAGIC %pip install -q databricks-feature-engineering
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
+dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("gold_schema", "fraud_gold")
 dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("model_name", "fraud_detection")
@@ -40,7 +56,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud_ml"
 
 model_alias = dbutils.widgets.get("model_alias")
 model_name = dbutils.widgets.get("model_name")

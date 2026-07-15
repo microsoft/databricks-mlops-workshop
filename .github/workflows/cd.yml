@@ -107,6 +107,15 @@ jobs:
       DATABRICKS_AUTH_TYPE: github-oidc
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      # staging is mode: production, so its jobs run_as the service principal. Feed the SP
+      # application id (same client id used to authenticate) to the bundle variable.
+      # Casing is deliberate: the Databricks CLI reads a bundle variable from an env var named
+      # `BUNDLE_VAR_<name>` where `<name>` must match the variable EXACTLY. Our variable is the
+      # lowercase `cicd_service_principal` (in databricks.yml), so the env var is the fixed
+      # uppercase prefix `BUNDLE_VAR_` + the lowercase name. Upper-casing the tail would make the
+      # CLI look for a variable `CICD_SERVICE_PRINCIPAL`, which does not exist, and the value
+      # would be ignored (staging's run_as would then fail to resolve).
+      BUNDLE_VAR_cicd_service_principal: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@v0.9.0

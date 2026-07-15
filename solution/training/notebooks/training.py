@@ -21,7 +21,25 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "adoption_workshop")
+# MAGIC %md
+# MAGIC ## Setup
+# MAGIC Upgrade MLflow to 3.x for the new registry/logged-model features. Install the
+# MAGIC Feature Engineering client **without `--upgrade`** so it stays at the runtime version
+# MAGIC that created the feature table (mismatched client versions can't resolve the feature
+# MAGIC table). On ML Runtime the client is pre-installed; on serverless this adds it.
+
+# COMMAND ----------
+
+# MAGIC %pip install -q "mlflow>=3.0" --upgrade
+# MAGIC %pip install -q databricks-feature-engineering
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
+dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("gold_schema", "fraud_gold")
 dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("experiment_name", "")
@@ -39,7 +57,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud_ml"
 
 # Labels come from the shared gold table; features come from the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"

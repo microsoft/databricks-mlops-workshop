@@ -20,12 +20,20 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install -q "mlflow>=3.0" --upgrade
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
 # The deployment job injects the FULL three-level model name (catalog.schema.model) into
 # `model_name`, plus the `model_version` it is gating. Both are empty when this notebook is
 # run interactively, so the fallback below rebuilds them.
 dbutils.widgets.text("model_name", "")
 dbutils.widgets.text("model_version", "")
-dbutils.widgets.text("catalog_name", "adoption_workshop")
+dbutils.widgets.text("catalog_name", "dev")
 dbutils.widgets.text("ml_schema", "")
 dbutils.widgets.text("approval_tag_name", "")
 dbutils.widgets.text("auto_approve", "false")
@@ -54,7 +62,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud"
+    ml_schema = f"dev_{_short}_fraud_ml"
 if not uc_model_name:
     uc_model_name = f"{catalog_name}.{ml_schema}.fraud_detection"
 if not model_version:
