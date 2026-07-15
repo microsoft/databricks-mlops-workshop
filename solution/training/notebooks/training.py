@@ -159,13 +159,23 @@ else:
 
 schema_fqn = f"{catalog_name}.{ml_schema}"
 
-# Cap the training data at a random sample so the notebook runs in a couple of minutes.
-# Fraud is extremely rare, so a random sample (not the first N rows) is what keeps enough
-# fraud examples in the set; the seed makes it reproducible run-to-run.
+# Train on the train + validation splits only, read from the shared split table that feature
+# engineering materialised. This guarantees the rows are disjoint from the `test` holdout that
+# evaluation scores, so the evaluation metric is honest (no train/test leakage). Still cap at a
+# random sample so the notebook runs in a couple of minutes; fraud is extremely rare, so a random
+# sample (not the first N rows) keeps enough fraud examples, and the seed makes it reproducible.
 SAMPLE_ROWS = 200000
+
+split_table = f"{catalog_name}.{ml_schema}.transactions_split"
+train_ids = (
+    spark.read.table(split_table)
+    .where(F.col("split").isin("train", "validation"))
+    .select("transaction_id")
+)
 
 spine = (
     spark.read.table(source_table)
+    .join(train_ids, "transaction_id")  # keep only train/validation rows -> disjoint from test
     .select(
         "transaction_id",
         "card_id",

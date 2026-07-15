@@ -105,16 +105,24 @@ mlflow.set_registry_uri("databricks-uc")
 client = MlflowClient()
 fe = FeatureEngineeringClient()
 
-# Independent evaluation: score the REGISTERED artifact on a fresh, labelled holdout rather
-# than trusting the metrics training self-reported. fe.score_batch replays the exact feature
-# lookups + on-demand functions recorded at training, and the served model returns a fraud
-# probability, so a real ROC AUC can be computed. In production this holdout would be a
-# curated, leakage-controlled evaluation table; here it is sampled from the shared gold source.
+# Independent evaluation: score the REGISTERED artifact on the held-out `test` split rather than
+# trusting the metrics training self-reported. fe.score_batch replays the exact feature lookups +
+# on-demand functions recorded at training, and the served model returns a fraud probability, so a
+# real ROC AUC can be computed. The test split is the persisted, deterministic holdout that feature
+# engineering wrote; it is GUARANTEED disjoint from the rows training used, so this metric is not
+# inflated by train/test leakage.
 gold_table = f"{catalog_name}.fraud_gold.transactions_enriched"
+split_table = f"{catalog_name}.{ml_schema}.transactions_split"
+
+test_ids = (
+    spark.read.table(split_table).where(F.col("split") == "test").select("transaction_id")
+)
 
 eval_spine = (
     spark.read.table(gold_table)
+    .join(test_ids, "transaction_id")  # the held-out test split ONLY
     .select(
+        "transaction_id",
         "card_id",
         "client_id",
         F.col("amount").cast("double").alias("amount"),
@@ -124,11 +132,9 @@ eval_spine = (
         F.col("is_fraud").cast("int").alias("is_fraud"),
     )
     .where(F.col("is_fraud").isNotNull())
-    .orderBy(F.rand(7))  # different seed than training, so mostly-unseen rows
+    .orderBy(F.xxhash64("transaction_id"))  # deterministic order so candidate and champion score the SAME rows
     .limit(50000)
 )
-# Note: no .cache(), because serverless compute rejects PERSIST. The seeded rand(7) sample is
-# deterministic over the immutable gold table, so candidate and champion score the same rows.
 
 
 def score_holdout(version):

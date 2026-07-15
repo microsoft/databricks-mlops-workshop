@@ -129,6 +129,42 @@ client_features = enriched.groupBy("client_id").agg(
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 3. Materialise the train / validation / test split
+# MAGIC
+# MAGIC A proper evaluation needs a hold-out set that is GUARANTEED disjoint from training, and the
+# MAGIC same rows on every run. Sampling each notebook independently (even with different seeds)
+# MAGIC does not guarantee that: two random samples of the same table overlap. Instead we assign
+# MAGIC every transaction to one split by hashing its stable id, and persist the assignment as a
+# MAGIC Delta table. Training reads `train`/`validation`; evaluation reads `test`. Because the hash
+# MAGIC is deterministic the split is reproducible and leakage-free, and the table is versioned so a
+# MAGIC model version is always scored on the identical holdout.
+# MAGIC
+# MAGIC Production hardening: hashing `transaction_id` is a row-level split. To avoid *entity*
+# MAGIC leakage (the same card in both train and test) hash `card_id`/`client_id` instead; and for a
+# MAGIC temporal problem like fraud, prefer a time-based holdout (train on older data, test on the
+# MAGIC most recent window). A uniform hash keeps the rare fraud rate roughly equal across splits;
+# MAGIC stratify by the label if you need it exact.
+
+# COMMAND ----------
+
+split_table = f"{catalog_name}.{ml_schema}.transactions_split"
+
+# Deterministic bucket 0-99 from a stable key: the same id always lands in the same split, on
+# every run and in every notebook, so train and test can never overlap.
+bucket = F.pmod(F.xxhash64("transaction_id"), F.lit(100))
+splits = enriched.select(
+    "transaction_id",
+    F.when(bucket < 70, "train")
+    .when(bucket < 85, "validation")
+    .otherwise("test")
+    .alias("split"),
+)
+splits.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(split_table)
+print(f"Wrote {split_table}: ~70% train / 15% validation / 15% test (deterministic on transaction_id).")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## 3. Register the on-demand feature functions
 # MAGIC
 # MAGIC UC feature functions (Python UDFs) that compute transaction-derived features from the
