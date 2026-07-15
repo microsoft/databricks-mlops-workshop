@@ -131,36 +131,55 @@ client_features = enriched.groupBy("client_id").agg(
 # MAGIC %md
 # MAGIC ## 3. Materialise the train / validation / test split
 # MAGIC
-# MAGIC A proper evaluation needs a hold-out set that is GUARANTEED disjoint from training, and the
-# MAGIC same rows on every run. Sampling each notebook independently (even with different seeds)
-# MAGIC does not guarantee that: two random samples of the same table overlap. Instead we assign
-# MAGIC every transaction to one split by hashing its stable id, and persist the assignment as a
-# MAGIC Delta table. Training reads `train`/`validation`; evaluation reads `test`. Because the hash
-# MAGIC is deterministic the split is reproducible and leakage-free, and the table is versioned so a
-# MAGIC model version is always scored on the identical holdout.
+# MAGIC A proper evaluation needs a hold-out set that is representative and GUARANTEED disjoint from
+# MAGIC training, on the same rows every run. Two properties matter for fraud:
 # MAGIC
-# MAGIC Production hardening: hashing `transaction_id` is a row-level split. To avoid *entity*
-# MAGIC leakage (the same card in both train and test) hash `card_id`/`client_id` instead; and for a
-# MAGIC temporal problem like fraud, prefer a time-based holdout (train on older data, test on the
-# MAGIC most recent window). A uniform hash keeps the rare fraud rate roughly equal across splits;
-# MAGIC stratify by the label if you need it exact.
+# MAGIC - **Grouped by customer.** Whole clients are assigned to one split, so the same customer is
+# MAGIC   never in both train and test. A row-level split would let the model memorise a client seen
+# MAGIC   in training and then be graded on that same client (entity leakage -> optimistic metrics).
+# MAGIC - **Stratified by the label.** Fraud is well under 1%, so we assign clients to 70/15/15
+# MAGIC   *within* each fraud / non-fraud stratum, keeping the fraud rate identical across splits so
+# MAGIC   the test set is representative and has enough positives for a stable metric.
+# MAGIC
+# MAGIC The assignment is a deterministic rank over a hash of `client_id`, so it is reproducible and
+# MAGIC persisted as a versioned Delta table; a model version is always scored on the identical
+# MAGIC holdout. Production hardening: for temporal data a time-based holdout (train older, test the
+# MAGIC most recent window) is stronger still, and point-in-time feature lookups prevent feature
+# MAGIC leakage.
 
 # COMMAND ----------
 
 split_table = f"{catalog_name}.{ml_schema}.transactions_split"
 
-# Deterministic bucket 0-99 from a stable key: the same id always lands in the same split, on
-# every run and in every notebook, so train and test can never overlap.
-bucket = F.pmod(F.xxhash64("transaction_id"), F.lit(100))
-splits = enriched.select(
-    "transaction_id",
-    F.when(bucket < 70, "train")
-    .when(bucket < 85, "validation")
+# Group by CUSTOMER and stratify by the (rare) fraud label. Assign whole clients (not rows) to a
+# split so no customer ever appears in both train and test. Within each fraud / non-fraud stratum
+# rank clients by a hash of client_id and cut at 70/15/15, so every client lands in exactly one
+# split (grouped), the fraud-client proportion is identical across splits (stratified), and the
+# assignment is deterministic (hash order) and versioned as a Delta table.
+from pyspark.sql import Window
+
+client_label = enriched.groupBy("client_id").agg(
+    F.max("is_fraud").cast("int").alias("client_has_fraud")
+)
+strata = Window.partitionBy("client_has_fraud").orderBy(F.xxhash64("client_id"))
+client_split = client_label.select(
+    "client_id",
+    F.percent_rank().over(strata).alias("pct"),
+).select(
+    "client_id",
+    F.when(F.col("pct") < 0.70, "train")
+    .when(F.col("pct") < 0.85, "validation")
     .otherwise("test")
     .alias("split"),
 )
+
+splits = (
+    enriched.select("transaction_id", "client_id")
+    .join(client_split, "client_id")
+    .select("transaction_id", "split")
+)
 splits.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(split_table)
-print(f"Wrote {split_table}: ~70% train / 15% validation / 15% test (deterministic on transaction_id).")
+print(f"Wrote {split_table}: 70/15/15 train/validation/test, grouped by client, stratified by fraud.")
 
 # COMMAND ----------
 
