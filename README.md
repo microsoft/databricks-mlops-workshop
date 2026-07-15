@@ -436,14 +436,14 @@ The bundle declares the schema with a **base name** in [resources/schemas-resour
 ```yaml
 resources:
   schemas:
-    ml_workspace:
+    fraud_ml:
       catalog_name: ${var.catalog_name}
-      name: fraud
+      name: fraud_ml
 ```
 
 In **development mode** the bundle automatically prepends `[dev <your-short-name>]` to every
-resource name (sanitised for schemas), so `fraud` becomes **`dev_<you>_fraud`**, a private
-schema per user. In **production mode** there is no prefix, so it stays the shared `fraud`.
+resource name (sanitised for schemas), so `fraud_ml` becomes **`dev_<you>_fraud_ml`**, a private
+schema per user. In **production mode** there is no prefix, so it stays the shared `fraud_ml`.
 This prefixing is a built-in feature of development mode.
 
 Jobs then pass the schema's **resolved** name to the notebooks so they always write to exactly
@@ -452,18 +452,18 @@ what the bundle created:
 ```yaml
 base_parameters:
   gold_schema: ${var.gold_schema}                      # shared read    -> fraud_gold
-  ml_schema: ${resources.schemas.ml_workspace.name}    # personal write -> dev_<you>_fraud
+  ml_schema: ${resources.schemas.fraud_ml.name}        # personal write -> dev_<you>_fraud_ml
 ```
 
 and the model name follows the same schema:
-`${var.catalog_name}.${resources.schemas.ml_workspace.name}.${var.model_name}`
+`${var.catalog_name}.${resources.schemas.fraud_ml.name}.${var.model_name}`
 (where `model_name` is the bare name, default `fraud_detection`). The notebooks prepend
 the catalog and `ml_schema` to it to build the three-level `uc_model_name`.
 
 > **Why reference the resource, not a plain variable?** Development mode prefixes the schema
 > *resource* but not a hand-written variable, so a variable like `${short_name}_fraud` would
 > not match the schema the bundle actually creates. Referencing
-> `${resources.schemas.ml_workspace.name}` guarantees notebooks and the provisioned schema
+> `${resources.schemas.fraud_ml.name}` guarantees notebooks and the provisioned schema
 > use the identical name.
 
 ### Attendee flow
