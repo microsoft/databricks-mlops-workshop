@@ -280,7 +280,7 @@ baseline = (
 )
 baseline_table = f"{catalog_name}.{ml_schema}.fraud_predictions_baseline"
 baseline.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(baseline_table)
-print(f"Wrote monitor baseline {baseline_table} from the validation split ({baseline.count():,} rows).")
+print(f"Wrote monitor baseline {baseline_table} from the validation split.")
 
 # COMMAND ----------
 

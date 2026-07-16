@@ -317,9 +317,14 @@ class FraudProbabilityModel(mlflow.pyfunc.PythonModel):
 
 
 def balance(X_fold, y_fold):
-    """Down-sample non-fraud to 1:1 within a fold (keep every fraud row)."""
+    """Down-sample non-fraud to ~1:1 within a fold (keep every fraud row). Falls back to the fold
+    unchanged when it has no fraud (nothing to balance) or no non-fraud rows, and never samples
+    more non-fraud rows than exist, so the fold can never come back empty."""
+    legit = y_fold[y_fold == 0]
     fraud_idx = y_fold[y_fold == 1].index
-    legit_idx = y_fold[y_fold == 0].sample(n=len(fraud_idx), random_state=42).index
+    if len(fraud_idx) == 0 or len(legit) == 0:
+        return X_fold, y_fold
+    legit_idx = legit.sample(n=min(len(fraud_idx), len(legit)), random_state=42).index
     idx = fraud_idx.union(legit_idx)
     return X_fold.loc[idx], y_fold.loc[idx]
 

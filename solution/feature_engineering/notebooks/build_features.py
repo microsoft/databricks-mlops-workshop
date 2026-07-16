@@ -144,46 +144,44 @@ publish(
 # MAGIC %md
 # MAGIC ## 3. Materialise the train / validation / test split
 # MAGIC
-# MAGIC A proper evaluation needs a hold-out set that is representative and GUARANTEED disjoint from
+# MAGIC A proper evaluation needs a hold-out that is representative and GUARANTEED disjoint from
 # MAGIC training, on the same rows every run. Two properties matter for fraud:
 # MAGIC
 # MAGIC - **Grouped by customer.** Whole clients are assigned to one split, so the same customer is
 # MAGIC   never in both train and test. A row-level split would let the model memorise a client seen
 # MAGIC   in training and then be graded on that same client (entity leakage -> optimistic metrics).
-# MAGIC - **Stratified by the label.** Fraud is well under 1%, so we assign clients to 70/15/15
-# MAGIC   *within* each fraud / non-fraud stratum, keeping the fraud rate identical across splits so
-# MAGIC   the test set is representative and has enough positives for a stable metric.
+# MAGIC - **Stable and reproducible.** Each client is assigned by a deterministic hash BUCKET of
+# MAGIC   `client_id` (0-99), so a client always lands in the same split no matter when the job runs
+# MAGIC   or how much new data has arrived. Nothing flips on recompute. The uniform hash keeps the
+# MAGIC   rare fraud rate roughly equal across splits (approximately stratified); this trades exact
+# MAGIC   70/15/15 proportions for the population stability production needs.
 # MAGIC
-# MAGIC The assignment is a deterministic rank over a hash of `client_id`, so it is reproducible and
-# MAGIC persisted as a versioned Delta table; a model version is always scored on the identical
-# MAGIC holdout. Production hardening: for temporal data a time-based holdout (train older, test the
-# MAGIC most recent window) is stronger still, and point-in-time feature lookups prevent feature
-# MAGIC leakage.
+# MAGIC The result is persisted as a versioned Delta table, so a model version is always scored on
+# MAGIC the identical holdout. Production hardening: for temporal data a time-based holdout (train
+# MAGIC older, test the most recent window) is stronger still, and point-in-time feature lookups
+# MAGIC prevent feature leakage.
 
 # COMMAND ----------
 
 split_table = f"{catalog_name}.{ml_schema}.transactions_split"
 
-# Group by CUSTOMER and stratify by the (rare) fraud label. Assign whole clients (not rows) to a
-# split so no customer ever appears in both train and test. Within each fraud / non-fraud stratum
-# rank clients by a hash of client_id and cut at 70/15/15, so every client lands in exactly one
-# split (grouped), the fraud-client proportion is identical across splits (stratified), and the
-# assignment is deterministic (hash order) and versioned as a Delta table.
-from pyspark.sql import Window
-
-client_label = enriched.groupBy("client_id").agg(
-    F.max("is_fraud").cast("int").alias("client_has_fraud")
-)
-strata = Window.partitionBy("client_has_fraud").orderBy(F.xxhash64("client_id"))
-client_split = client_label.select(
-    "client_id",
-    F.percent_rank().over(strata).alias("pct"),
-).select(
-    "client_id",
-    F.when(F.col("pct") < 0.70, "train")
-    .when(F.col("pct") < 0.85, "validation")
-    .otherwise("test")
-    .alias("split"),
+# Group by CUSTOMER: assign whole clients (not rows) to a split so no customer ever appears in
+# both train and test. Use a deterministic hash BUCKET of client_id (0-99): the same client always
+# lands in the same bucket regardless of when the job runs or how much data has arrived, so the
+# split is population-stable (a client never flips train<->test on recompute). The uniform hash
+# keeps the rare fraud rate roughly equal across splits (approximately stratified), and the
+# assignment is versioned as a Delta table.
+bucket = F.pmod(F.xxhash64("client_id"), F.lit(100))
+client_split = (
+    enriched.select("client_id")
+    .distinct()
+    .select(
+        "client_id",
+        F.when(bucket < 70, "train")
+        .when(bucket < 85, "validation")
+        .otherwise("test")
+        .alias("split"),
+    )
 )
 
 splits = (
@@ -192,7 +190,7 @@ splits = (
     .select("transaction_id", "split")
 )
 splits.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(split_table)
-print(f"Wrote {split_table}: 70/15/15 train/validation/test, grouped by client, stratified by fraud.")
+print(f"Wrote {split_table}: ~70/15/15 train/validation/test, grouped by client (deterministic hash).")
 
 # COMMAND ----------
 
