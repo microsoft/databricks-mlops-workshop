@@ -89,6 +89,7 @@ print(f"Model:      {uc_model_name}")
 # COMMAND ----------
 
 import mlflow
+import numpy as np
 from databricks.feature_engineering import (
     FeatureEngineeringClient,
     FeatureFunction,
@@ -104,7 +105,7 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedGroupKFold
 
 # MLflow 3: register to the Unity Catalog model registry (the default in MLflow 3, set
 # explicitly here so the notebook behaves the same on any runtime).
@@ -159,13 +160,23 @@ else:
 
 schema_fqn = f"{catalog_name}.{ml_schema}"
 
-# Cap the training data at a random sample so the notebook runs in a couple of minutes.
-# Fraud is extremely rare, so a random sample (not the first N rows) is what keeps enough
-# fraud examples in the set; the seed makes it reproducible run-to-run.
+# Train on the train + validation splits only, read from the shared split table that feature
+# engineering materialised. This guarantees the rows are disjoint from the `test` holdout that
+# evaluation scores, so the evaluation metric is honest (no train/test leakage). Still cap at a
+# random sample so the notebook runs in a couple of minutes; fraud is extremely rare, so a random
+# sample (not the first N rows) keeps enough fraud examples, and the seed makes it reproducible.
 SAMPLE_ROWS = 200000
+
+split_table = f"{catalog_name}.{ml_schema}.transactions_split"
+train_ids = (
+    spark.read.table(split_table)
+    .where(F.col("split").isin("train", "validation"))
+    .select("transaction_id")
+)
 
 spine = (
     spark.read.table(source_table)
+    .join(train_ids, "transaction_id")  # keep only train/validation rows -> disjoint from test
     .select(
         "transaction_id",
         "card_id",
@@ -218,8 +229,9 @@ feature_functions = [
 # HINT:   (client_feature_table, lookup_key="client_id", credit_score/yearly_income/current_age).
 # HINT: fe.create_training_set(df=spine, feature_lookups=feature_lookups + feature_functions,
 # HINT:   label="is_fraud", exclude_columns=[...]).
-# HINT: exclude the keys and raw function inputs so the model only sees features:
-# HINT:   transaction_id, card_id, client_id, mcc, use_chip.
+# HINT: exclude the keys and raw function inputs so the model only sees features, but KEEP
+# HINT:   client_id (it is the cross-validation group; dropped from X before fitting):
+# HINT:   transaction_id, card_id, mcc, use_chip.
 feature_lookups = [
     FeatureLookup(
         table_name=card_feature_table,
@@ -237,20 +249,19 @@ training_set = fe.create_training_set(
     df=spine,
     feature_lookups=feature_lookups + feature_functions,
     label="is_fraud",
-    exclude_columns=["transaction_id", "card_id", "client_id", "mcc", "use_chip"],
+    exclude_columns=["transaction_id", "card_id", "mcc", "use_chip"],
 )
 # TODO-END
 
-# Load into pandas and do a standard stratified train/test split (provided: this is ordinary
-# scikit-learn, not the MLOps concept this lab is about).
+# Load into pandas. Keep client_id as the CROSS-VALIDATION GROUP (dropped from the model
+# features below); is_fraud is the label. train_pdf holds only the train+validation splits (the
+# join upstream), so the test holdout is never touched here.
 train_pdf = training_set.load_df().toPandas()
-X = train_pdf.drop(columns=["is_fraud"])
+groups = train_pdf["client_id"]  # customer id: keeps a client within a single CV fold
 y = train_pdf["is_fraud"]
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42
-)
-print(f"Rows: {len(train_pdf):,}  |  features: {list(X.columns)}  |  fraud rate: {y.mean():.4f}")
+FEATURE_COLS = [c for c in train_pdf.columns if c not in ("is_fraud", "client_id")]
+X = train_pdf[FEATURE_COLS]
+print(f"Rows: {len(train_pdf):,}  |  features: {FEATURE_COLS}  |  fraud rate: {y.mean():.4f}")
 
 # COMMAND ----------
 
@@ -263,8 +274,10 @@ print(f"Rows: {len(train_pdf):,}  |  features: {list(X.columns)}  |  fraud rate:
 # MAGIC - Train a baseline random forest on the raw, imbalanced data to establish the problem.
 # MAGIC - Retrain on balanced data (retain every fraud row, down-sample non-fraud to match) so
 # MAGIC   the model learns the minority class.
-# MAGIC - Evaluate on the original, imbalanced test set so the reported metrics reflect
-# MAGIC   production conditions.
+# MAGIC - Estimate generalisation with Stratified GROUP k-fold cross-validation: each fold
+# MAGIC   stratifies by the rare fraud label and keeps every client in one fold, so no customer
+# MAGIC   is in both the fit and the validation of a fold. Metrics are averaged across folds and
+# MAGIC   scored on the untouched (imbalanced) validation side, so they reflect production.
 # MAGIC
 # MAGIC `fe.log_model` packages the model with its feature metadata, infers a signature and
 # MAGIC input example, and registers it to Unity Catalog in a single step (no separate
@@ -293,44 +306,77 @@ class FraudProbabilityModel(mlflow.pyfunc.PythonModel):
     the classifier in a pyfunc keeps fe.log_model's feature resolution intact.
     """
 
-    def __init__(self, model):
+    def __init__(self, model, feature_cols):
         self.model = model
+        self.feature_cols = feature_cols
 
     def predict(self, context, model_input):
-        return self.model.predict_proba(model_input)[:, 1]
+        # The serving spine also carries client_id (the lookup key / CV group), which is not a
+        # model feature, so select the feature columns before predicting.
+        return self.model.predict_proba(model_input[self.feature_cols])[:, 1]
 
 
-# Naive random forest (instructor-provided): the imbalance trap. Trained on the raw,
-# highly-imbalanced data it just learns to predict the majority class, so accuracy looks
-# great while recall is ~0 (it never flags a fraud). Logged for comparison, NOT
-# registered.
+def balance(X_fold, y_fold):
+    """Down-sample non-fraud to ~1:1 within a fold (keep every fraud row). Falls back to the fold
+    unchanged when it has no fraud (nothing to balance) or no non-fraud rows, and never samples
+    more non-fraud rows than exist, so the fold can never come back empty."""
+    legit = y_fold[y_fold == 0]
+    fraud_idx = y_fold[y_fold == 1].index
+    if len(fraud_idx) == 0 or len(legit) == 0:
+        return X_fold, y_fold
+    legit_idx = legit.sample(n=min(len(fraud_idx), len(legit)), random_state=42).index
+    idx = fraud_idx.union(legit_idx)
+    return X_fold.loc[idx], y_fold.loc[idx]
+
+
+PARAMS = {"n_estimators": 100, "random_state": 42}
+
+# One grouped hold-out fold for the in-notebook naive-vs-balanced comparison and the confusion
+# matrices below, so those illustrations are scored on rows the demo models were not fit on.
+demo_tr, demo_va = next(
+    StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42).split(X, y, groups)
+)
+X_demo_va, y_demo_va = X.iloc[demo_va], y.iloc[demo_va]
+
+# Naive baseline (instructor-provided): fit on the raw, imbalanced fold with NO balancing to
+# show the imbalance trap: near-perfect accuracy but ~0 recall (it never flags a fraud). Logged
+# for comparison, NOT registered.
 with mlflow.start_run(run_name="rf_imbalanced"):
-    naive_params = {"n_estimators": 100, "random_state": 42}
-    naive = RandomForestClassifier(**naive_params)
-    naive.fit(X_train, y_train)
-    naive_metrics = evaluate(naive, X_test, y_test)
-    mlflow.log_params({**naive_params, "training_data": "imbalanced"})
+    naive = RandomForestClassifier(**PARAMS).fit(X.iloc[demo_tr], y.iloc[demo_tr])
+    naive_metrics = evaluate(naive, X_demo_va, y_demo_va)
+    mlflow.log_params({**PARAMS, "training_data": "imbalanced"})
     mlflow.log_metrics(naive_metrics)
     print("rf_imbalanced:", naive_metrics)  # high accuracy, low recall
 
-# Fixed random forest: the model that is tracked and registered.
+# Balanced model on the SAME demo fold, used only for the confusion-matrix comparison below (the
+# registered model is the CV-averaged one fit on all data; this fold model is what we plot so
+# both matrices are scored on the held-out demo fold, not on rows the model was fit on).
+X_demo_bal, y_demo_bal = balance(X.iloc[demo_tr], y.iloc[demo_tr])
+demo_balanced = RandomForestClassifier(**PARAMS).fit(X_demo_bal, y_demo_bal)
+
+# Registered model: Stratified GROUP k-fold cross-validation. Each fold stratifies by the rare
+# fraud label AND keeps every client in one fold, so no customer is ever in both the fit and the
+# validation of a fold (no entity leakage in the estimate). Balance the fit side of each fold,
+# score the untouched validation side, and average -> an honest generalisation estimate. The
+# registered artifact is then fit on ALL train+validation rows (balanced).
 with mlflow.start_run(run_name="rf_balanced") as run:
-    # Balance the training rows: keep every fraud row and randomly sample an equal number of
-    # non-fraud rows (provided: this is a data-science fix, not the MLOps concept). Evaluation
-    # still uses the untouched, imbalanced X_test/y_test so metrics reflect reality.
-    fraud_idx = y_train[y_train == 1].index
-    legit_idx = y_train[y_train == 0].sample(n=len(fraud_idx), random_state=42).index
-    bal_idx = fraud_idx.union(legit_idx)
-    X_bal, y_bal = X_train.loc[bal_idx], y_train.loc[bal_idx]
+    sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+    fold_metrics = []
+    for tr, va in sgkf.split(X, y, groups):
+        X_bal, y_bal = balance(X.iloc[tr], y.iloc[tr])
+        clf = RandomForestClassifier(**PARAMS).fit(X_bal, y_bal)
+        fold_metrics.append(evaluate(clf, X.iloc[va], y.iloc[va]))
+    # Cross-validated metrics = mean across folds (what we report and gate on).
+    metrics = {k: float(np.mean([m[k] for m in fold_metrics])) for k in fold_metrics[0]}
 
-    params = {"n_estimators": 100, "random_state": 42}
-    model = RandomForestClassifier(**params)
-    model.fit(X_bal, y_bal)
-    metrics = evaluate(model, X_test, y_test)
+    # Final registered model: fit on ALL train+validation rows (balanced).
+    X_all_bal, y_all_bal = balance(X, y)
+    model = RandomForestClassifier(**PARAMS).fit(X_all_bal, y_all_bal)
 
-    mlflow.log_params(params)
+    mlflow.log_params(PARAMS)
     mlflow.log_param("training_data", "balanced (1:1 down-sampled)")
-    mlflow.log_param("train_rows", int(len(y_bal)))
+    mlflow.log_param("cv", "StratifiedGroupKFold(n_splits=5) grouped by client_id")
+    mlflow.log_param("train_rows", int(len(y_all_bal)))
     mlflow.log_param("training_table", source_table)
     mlflow.log_param("card_feature_table", card_feature_table)
     mlflow.log_param("client_feature_table", client_feature_table)
@@ -342,11 +388,11 @@ with mlflow.start_run(run_name="rf_balanced") as run:
     # TODO-BEGIN: log and register the model to Unity Catalog with its feature metadata
     # HINT: fe.log_model packages the model with the training_set's feature lookups (so serving
     # HINT:   reproduces the same features) and registers it to UC in a single call.
-    # HINT: fe.log_model(model=FraudProbabilityModel(model), artifact_path="model",
+    # HINT: fe.log_model(model=FraudProbabilityModel(model, FEATURE_COLS), artifact_path="model",
     # HINT:   flavor=mlflow.pyfunc, training_set=training_set,
     # HINT:   registered_model_name=uc_model_name, infer_input_example=True)
     fe.log_model(
-        model=FraudProbabilityModel(model),
+        model=FraudProbabilityModel(model, FEATURE_COLS),
         artifact_path="model",
         flavor=mlflow.pyfunc,
         training_set=training_set,
@@ -385,8 +431,8 @@ print(metrics)
 # MAGIC   and detects little fraud.
 # MAGIC - The balanced model recovers true positives at the cost of more false positives.
 # MAGIC
-# MAGIC Both use the same original, imbalanced test set. The figure is logged to the
-# MAGIC `rf_balanced` MLflow run so it stays with the model version.
+# MAGIC Both are scored on the same held-out demo fold (rows neither demo model was fit on). The
+# MAGIC figure is logged to the `rf_balanced` MLflow run so it stays with the model version.
 
 # COMMAND ----------
 
@@ -396,10 +442,10 @@ from sklearn.metrics import ConfusionMatrixDisplay
 fig, axes = plt.subplots(1, 2, figsize=(11, 4))
 for ax, clf, title in (
     (axes[0], naive, "rf_imbalanced (naive)"),
-    (axes[1], model, "rf_balanced (registered)"),
+    (axes[1], demo_balanced, "rf_balanced (demo fold)"),
 ):
     ConfusionMatrixDisplay.from_estimator(
-        clf, X_test, y_test, display_labels=["legit", "fraud"], cmap="Blues", ax=ax, colorbar=False
+        clf, X_demo_va, y_demo_va, display_labels=["legit", "fraud"], cmap="Blues", ax=ax, colorbar=False
     )
     ax.set_title(title)
 fig.tight_layout()

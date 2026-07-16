@@ -129,6 +129,59 @@ client_features = enriched.groupBy("client_id").agg(
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 3. Materialise the train / validation / test split
+# MAGIC
+# MAGIC A proper evaluation needs a hold-out that is representative and GUARANTEED disjoint from
+# MAGIC training, on the same rows every run. Two properties matter for fraud:
+# MAGIC
+# MAGIC - **Grouped by customer.** Whole clients are assigned to one split, so the same customer is
+# MAGIC   never in both train and test. A row-level split would let the model memorise a client seen
+# MAGIC   in training and then be graded on that same client (entity leakage -> optimistic metrics).
+# MAGIC - **Stable and reproducible.** Each client is assigned by a deterministic hash BUCKET of
+# MAGIC   `client_id` (0-99), so a client always lands in the same split no matter when the job runs
+# MAGIC   or how much new data has arrived. Nothing flips on recompute. The uniform hash keeps the
+# MAGIC   rare fraud rate roughly equal across splits (approximately stratified); this trades exact
+# MAGIC   70/15/15 proportions for the population stability production needs.
+# MAGIC
+# MAGIC The result is persisted as a versioned Delta table, so a model version is always scored on
+# MAGIC the identical holdout. Production hardening: for temporal data a time-based holdout (train
+# MAGIC older, test the most recent window) is stronger still, and point-in-time feature lookups
+# MAGIC prevent feature leakage.
+
+# COMMAND ----------
+
+split_table = f"{catalog_name}.{ml_schema}.transactions_split"
+
+# Group by CUSTOMER: assign whole clients (not rows) to a split so no customer ever appears in
+# both train and test. Use a deterministic hash BUCKET of client_id (0-99): the same client always
+# lands in the same bucket regardless of when the job runs or how much data has arrived, so the
+# split is population-stable (a client never flips train<->test on recompute). The uniform hash
+# keeps the rare fraud rate roughly equal across splits (approximately stratified), and the
+# assignment is versioned as a Delta table.
+bucket = F.pmod(F.xxhash64("client_id"), F.lit(100))
+client_split = (
+    enriched.select("client_id")
+    .distinct()
+    .select(
+        "client_id",
+        F.when(bucket < 70, "train")
+        .when(bucket < 85, "validation")
+        .otherwise("test")
+        .alias("split"),
+    )
+)
+
+splits = (
+    enriched.select("transaction_id", "client_id")
+    .join(client_split, "client_id")
+    .select("transaction_id", "split")
+)
+splits.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(split_table)
+print(f"Wrote {split_table}: ~70/15/15 train/validation/test, grouped by client (deterministic hash).")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## 3. Register the on-demand feature functions
 # MAGIC
 # MAGIC UC feature functions (Python UDFs) that compute transaction-derived features from the

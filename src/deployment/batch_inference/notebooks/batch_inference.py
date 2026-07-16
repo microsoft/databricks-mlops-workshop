@@ -219,6 +219,70 @@ predictions = (
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 4. Write the monitor baseline (the validation split)
+# MAGIC
+# MAGIC A drift monitor compares the live window against a REFERENCE distribution. Databricks
+# MAGIC recommends the data the model was validated on as that reference, so we score the held-out
+# MAGIC `validation` split with the same champion and persist it in the SAME schema as the monitored
+# MAGIC table. The batch monitor's `baseline_table_name` points at it, so "drift" means the live
+# MAGIC predictions/features have moved away from what the model was validated on, not just
+# MAGIC window-to-window wobble. Overwritten each run so the baseline tracks the current champion.
+
+# COMMAND ----------
+
+split_table = f"{catalog_name}.{ml_schema}.transactions_split"
+val_to_score = (
+    spark.read.table(source_table)
+    .join(
+        spark.read.table(split_table)
+        .where(F.col("split") == "validation")
+        .select("transaction_id"),
+        "transaction_id",
+    )
+    .select(
+        "transaction_id",
+        "card_id",
+        "client_id",
+        F.col("amount").cast("double").alias("amount"),
+        "transaction_hour",
+        "mcc",
+        "use_chip",
+    )
+)
+val_scored = fe.score_batch(model_uri=f"models:/{uc_model_name}@{model_alias}", df=val_to_score)
+
+# Same shaping as the monitored table so the schemas match exactly (the monitor compares them).
+baseline = (
+    val_scored.withColumn("model_version", F.lit(model_version))
+    .withColumn("scored_at", scored_at)
+    .join(labels, on="transaction_id", how="left")
+    .select(
+        "transaction_id",
+        F.col("prediction").alias("fraud_score"),
+        (F.col("prediction") >= F.lit(0.5)).cast("int").alias("prediction"),
+        "model_version",
+        "scored_at",
+        "is_fraud",
+        F.col("amount").cast("double").alias("amount"),
+        "credit_score",
+        "credit_limit",
+        "yearly_income",
+        "current_age",
+        "num_cards_issued",
+        "is_night",
+        "is_online",
+        "is_high_risk_mcc",
+        "amount_to_income_ratio",
+        "amount_to_credit_limit_ratio",
+    )
+)
+baseline_table = f"{catalog_name}.{ml_schema}.fraud_predictions_baseline"
+baseline.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(baseline_table)
+print(f"Wrote monitor baseline {baseline_table} from the validation split.")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Recap
 # MAGIC - Batch scoring loads `@champion`; promotion is an alias swap, so this job never changes.
 # MAGIC - Each row carries `prediction`, `model_version`, `scored_at`, and `is_fraud`: exactly
