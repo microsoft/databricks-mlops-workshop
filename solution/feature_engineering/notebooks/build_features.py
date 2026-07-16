@@ -54,7 +54,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud_ml"
+    ml_schema = f"dev_{_short}_fraud"
 
 # Read from the shared gold source; write to the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"

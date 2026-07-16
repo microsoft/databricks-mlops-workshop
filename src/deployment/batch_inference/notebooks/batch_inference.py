@@ -56,7 +56,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud_ml"
+    ml_schema = f"dev_{_short}_fraud"
 
 model_alias = dbutils.widgets.get("model_alias")
 model_name = dbutils.widgets.get("model_name")
@@ -139,10 +139,12 @@ print(f"Scoring {to_score.count():,} transactions")
 
 # COMMAND ----------
 
+# -------------------- TODO --------------------
 # TODO: score the batch with the champion model
 # HINT: fe.score_batch(model_uri=f"models:/{uc_model_name}@{model_alias}", df=to_score).
 # HINT: the result has the lookup key plus a "prediction" column (the monitor's prediction_col).
 # <-- Your code here
+# ----------------------------------------------
 
 # COMMAND ----------
 
@@ -207,10 +209,12 @@ predictions = (
     )
 )
 
+# -------------------- TODO --------------------
 # TODO: append the predictions to the monitored inference table
 # HINT: predictions.write.mode("append").option("mergeSchema", "true").saveAsTable(predictions_table)
 # HINT: append (not overwrite) so the table grows each run and the monitor sees history.
 # <-- Your code here
+# ----------------------------------------------
 
 # COMMAND ----------
 

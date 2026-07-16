@@ -11,7 +11,7 @@
 # MAGIC
 # MAGIC Related notebooks:
 # MAGIC
-# MAGIC - `metric_violation_check.py`: the same pattern for model quality (`..._profile_metrics`).
+# MAGIC - `model_drift_check.py`: the same pattern for model quality (`..._profile_metrics`).
 # MAGIC - `monitoring.py`: the interactive dashboard that displays these metrics.
 # MAGIC
 # MAGIC Quality and drift live in separate tables: `..._profile_metrics` holds quality metrics

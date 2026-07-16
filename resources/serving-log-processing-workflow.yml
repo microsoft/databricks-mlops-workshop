@@ -9,7 +9,7 @@
 resources:
   jobs:
     serving_log_processing_job:
-      name: ${bundle.target}-mlops-workshop-serving-log-processing
+      name: ${bundle.target}-databricks-mlops-workshop-serving-log-processing
       tasks:
         - task_key: process_serving_logs
           notebook_task:

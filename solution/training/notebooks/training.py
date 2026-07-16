@@ -57,7 +57,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud_ml"
+    ml_schema = f"dev_{_short}_fraud"
 
 # Labels come from the shared gold table; features come from the personal schema.
 source_table = f"{catalog_name}.{gold_schema}.transactions_enriched"
@@ -67,8 +67,12 @@ client_feature_table = f"{catalog_name}.{ml_schema}.client_features"
 # Sensible defaults so the notebook is runnable interactively (outside the DAB job),
 # where the experiment/model widgets may be empty.
 current_user = spark.range(1).select(F.current_user()).first()[0]
+# Interactive fallback: outside the DAB job the experiment widget is empty, so log under the
+# user's home in an experiment named after the repo. In the job the bundle always passes
+# experiment_name (${resources.experiments.experiment.name}), so this only applies to ad-hoc runs.
 experiment_name = (
-    dbutils.widgets.get("experiment_name") or f"/Users/{current_user}/mlops-workshop-fraud"
+    dbutils.widgets.get("experiment_name")
+    or f"/Users/{current_user}/databricks-mlops-workshop"
 )
 model_name = dbutils.widgets.get("model_name")
 # Accept either a bare name (prepend catalog + ml_schema) or an already-qualified 3-level name.

@@ -46,7 +46,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud_ml"
+    ml_schema = f"dev_{_short}_fraud"
 
 payload_table = f"{catalog_name}.{ml_schema}.fraud_serving_payload"
 online_table = f"{catalog_name}.{ml_schema}.fraud_serving_inference"
@@ -227,10 +227,12 @@ online = (
     )
 )
 
+# -------------------- TODO --------------------
 # TODO: write the online inference table so the online monitor can read it
 # HINT: online.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(online_table)
 # HINT: overwrite (not append): this notebook rebuilds the table from the payloads each run.
 # <-- Your code here
+# ----------------------------------------------
 
 # COMMAND ----------
 

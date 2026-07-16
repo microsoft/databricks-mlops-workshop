@@ -178,7 +178,7 @@ Accuracy is misleading on imbalanced data, so the tracked metrics are:
 | Serving | Deploy champion via the deployment job; test the endpoint with `query_endpoint` |
 | Monitoring | Batch-score to an inference table; watch drift + precision/recall; trigger retrain |
 
-> **The Serving step is slow.** The deployment job (`fraud_deployment_job`) provisions a
+> **The Serving step is slow.** The deployment job (`deployment_job`) provisions a
 > **Lakebase online feature store**, publishes the `card_features`/`client_features` tables to
 > it, and builds a first-time serving endpoint, which typically takes **15-25 minutes**
 > end-to-end. It runs automatically when a new model version is registered; allow it to
@@ -436,15 +436,17 @@ The bundle declares the schema with a **base name** in [resources/schemas-resour
 ```yaml
 resources:
   schemas:
-    ml_workspace:
+    fraud_ml:
       catalog_name: ${var.catalog_name}
-      name: fraud
+      name: fraud_ml   # personal target overrides this to `fraud`
 ```
 
-In **development mode** the bundle automatically prepends `[dev <your-short-name>]` to every
-resource name (sanitised for schemas), so `fraud` becomes **`dev_<you>_fraud`**, a private
-schema per user. In **production mode** there is no prefix, so it stays the shared `fraud`.
-This prefixing is a built-in feature of development mode.
+On the clean **dev/staging/prod** targets the schema is the shared **`fraud_ml`**, sitting
+alongside `fraud_landing` / `fraud_bronze` / `fraud_silver` / `fraud_gold`. The **personal**
+target overrides the schema name to `fraud`, and development mode prepends
+`[dev <your-short-name>]` (sanitised for schemas), so each attendee gets a private
+**`dev_<you>_fraud`** sandbox they can use for anything. This prefixing is a built-in feature
+of development mode.
 
 Jobs then pass the schema's **resolved** name to the notebooks so they always write to exactly
 what the bundle created:
@@ -452,18 +454,18 @@ what the bundle created:
 ```yaml
 base_parameters:
   gold_schema: ${var.gold_schema}                      # shared read    -> fraud_gold
-  ml_schema: ${resources.schemas.ml_workspace.name}    # personal write -> dev_<you>_fraud
+  ml_schema: ${resources.schemas.fraud_ml.name}        # personal write -> dev_<you>_fraud
 ```
 
 and the model name follows the same schema:
-`${var.catalog_name}.${resources.schemas.ml_workspace.name}.${var.model_name}`
+`${var.catalog_name}.${resources.schemas.fraud_ml.name}.${var.model_name}`
 (where `model_name` is the bare name, default `fraud_detection`). The notebooks prepend
 the catalog and `ml_schema` to it to build the three-level `uc_model_name`.
 
 > **Why reference the resource, not a plain variable?** Development mode prefixes the schema
 > *resource* but not a hand-written variable, so a variable like `${short_name}_fraud` would
 > not match the schema the bundle actually creates. Referencing
-> `${resources.schemas.ml_workspace.name}` guarantees notebooks and the provisioned schema
+> `${resources.schemas.fraud_ml.name}` guarantees notebooks and the provisioned schema
 > use the identical name.
 
 ### Attendee flow

@@ -7,7 +7,7 @@
 # MAGIC Interactive dashboard. It refreshes the two Lakehouse Monitors and displays the metric
 # MAGIC tables they produce; it makes no decisions and is not part of the retraining job. The
 # MAGIC automated decisions run headless in two job tasks that read the same tables:
-# MAGIC `metric_violation_check.py` (model quality) and `feature_drift_check.py` (feature drift).
+# MAGIC `model_drift_check.py` (model quality) and `feature_drift_check.py` (feature drift).
 # MAGIC
 # MAGIC The bundle creates two monitors:
 # MAGIC
@@ -45,7 +45,7 @@ from pyspark.sql import functions as F
 if not ml_schema:
     _user = spark.range(1).select(F.current_user()).first()[0]
     _short = "".join(c if c.isalnum() else "_" for c in _user.split("@")[0])
-    ml_schema = f"dev_{_short}_fraud_ml"
+    ml_schema = f"dev_{_short}_fraud"
 
 batch_table = f"{catalog_name}.{ml_schema}.fraud_predictions"
 online_table = f"{catalog_name}.{ml_schema}.fraud_serving_inference"

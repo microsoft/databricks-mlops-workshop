@@ -5,7 +5,7 @@
 resources:
   jobs:
     model_training_job:
-      name: ${bundle.target}-mlops-workshop-training
+      name: ${bundle.target}-databricks-mlops-workshop-training
       tasks:
         - task_key: train
           notebook_task:
@@ -24,4 +24,4 @@ resources:
               # Connect this model to its deployment job so registering a new version
               # auto-triggers the governed evaluate -> approve -> deploy pipeline. The
               # validation + serving that used to be separate tasks now live in that job.
-              deployment_job_id: ${resources.jobs.fraud_deployment_job.id}
+              deployment_job_id: ${resources.jobs.deployment_job.id}

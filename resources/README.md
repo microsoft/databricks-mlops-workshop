@@ -6,7 +6,7 @@ reconciles them into the workspace.
 
 | File | Description |
 |---|---|
-| `schemas-resource.yml` | Per-user ML workspace schema (base name `fraud`; dev mode → `dev_<user>_fraud`). |
+| `schemas-resource.yml` | The ML schema: shared `fraud_ml` on clean targets; a per-attendee `dev_<user>_fraud` sandbox on personal. |
 | `ml-artifacts-resource.yml` | The MLflow experiment for the fraud project. |
 | `data-ingestion-workflow.yml` | Instructor-only job: land raw files into Bronze, then build Silver. |
 | `feature-engineering-workflow.yml` | Build the card/client entity feature tables and on-demand feature functions. |

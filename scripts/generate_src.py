@@ -40,6 +40,12 @@ END = "# TODO-END"
 HINT = "# HINT"
 PLACEHOLDER = "# <-- Your code here"
 
+# Width of the banner rules that wrap each generated TODO block so the gaps stand out
+# clearly from the surrounding provided code.
+_BANNER = "-" * 20
+TODO_TOP = f"# {_BANNER} TODO {_BANNER}"
+TODO_BOTTOM = "# " + "-" * (len(TODO_TOP) - 2)
+
 
 def strip_solution(text: str) -> str:
     """Replace every TODO-BEGIN..TODO-END block with the hint, any retained HINT
@@ -49,22 +55,37 @@ def strip_solution(text: str) -> str:
       * the text after ``TODO-BEGIN:`` becomes the ``# TODO:`` summary line,
       * any ``# HINT:`` comment lines are kept verbatim (guidance for participants),
       * all other (solution) lines are removed and replaced by a single placeholder.
-    Files with no markers pass through unchanged."""
+    Each generated block is wrapped in a banner and blank lines so the gap stands out
+    from the provided code around it. Files with no markers pass through unchanged."""
     lines = text.splitlines()
     out: list[str] = []
     in_block = False
     indent = ""
+    swallow_blank = False
     for line in lines:
         stripped = line.lstrip()
+        # Drop a single blank line that immediately follows a block: we add our own
+        # trailing blank, so this avoids a double gap before the next line.
+        if swallow_blank:
+            swallow_blank = False
+            if stripped == "":
+                continue
         if stripped.startswith(BEGIN):
             in_block = True
             indent = line[: len(line) - len(stripped)]
             hint = stripped[len(BEGIN) :].lstrip(": ").rstrip()
+            # Blank line before the banner for a clear separation from preceding code.
+            if out and out[-1].strip() != "":
+                out.append("")
+            out.append(f"{indent}{TODO_TOP}")
             out.append(f"{indent}# TODO: {hint}" if hint else f"{indent}# TODO")
             continue
         if stripped.startswith(END):
             in_block = False
             out.append(f"{indent}{PLACEHOLDER}")
+            out.append(f"{indent}{TODO_BOTTOM}")
+            out.append("")
+            swallow_blank = True
             continue
         if in_block:
             # Retain author-provided hints; drop everything else (the solution).
