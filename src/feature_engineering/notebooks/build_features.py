@@ -161,7 +161,7 @@ from pyspark.sql import Window
 client_label = enriched.groupBy("client_id").agg(
     F.max("is_fraud").cast("int").alias("client_has_fraud")
 )
-strata = Window.partitionBy("client_has_fraud").orderBy(F.xxhash64("client_id"))
+strata = Window.partitionBy("client_has_fraud").orderBy(F.xxhash64("client_id"), F.col("client_id"))
 client_split = client_label.select(
     "client_id",
     F.percent_rank().over(strata).alias("pct"),
