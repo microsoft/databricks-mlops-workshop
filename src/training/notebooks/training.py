@@ -309,16 +309,28 @@ def balance(X_fold, y_fold):
 
 PARAMS = {"n_estimators": 100, "random_state": 42}
 
-# Naive baseline (instructor-provided): fit on the raw, imbalanced data with NO balancing to
-# show the imbalance trap: near-perfect accuracy but ~0 recall (it never flags a fraud). Scored
-# on one grouped fold for illustration; logged for comparison, NOT registered.
+# One grouped hold-out fold for the in-notebook naive-vs-balanced comparison and the confusion
+# matrices below, so those illustrations are scored on rows the demo models were not fit on.
+demo_tr, demo_va = next(
+    StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42).split(X, y, groups)
+)
+X_demo_va, y_demo_va = X.iloc[demo_va], y.iloc[demo_va]
+
+# Naive baseline (instructor-provided): fit on the raw, imbalanced fold with NO balancing to
+# show the imbalance trap: near-perfect accuracy but ~0 recall (it never flags a fraud). Logged
+# for comparison, NOT registered.
 with mlflow.start_run(run_name="rf_imbalanced"):
-    tr, va = next(StratifiedGroupKFold(n_splits=5).split(X, y, groups))
-    naive = RandomForestClassifier(**PARAMS).fit(X.iloc[tr], y.iloc[tr])
-    naive_metrics = evaluate(naive, X.iloc[va], y.iloc[va])
+    naive = RandomForestClassifier(**PARAMS).fit(X.iloc[demo_tr], y.iloc[demo_tr])
+    naive_metrics = evaluate(naive, X_demo_va, y_demo_va)
     mlflow.log_params({**PARAMS, "training_data": "imbalanced"})
     mlflow.log_metrics(naive_metrics)
     print("rf_imbalanced:", naive_metrics)  # high accuracy, low recall
+
+# Balanced model on the SAME demo fold, used only for the confusion-matrix comparison below (the
+# registered model is the CV-averaged one fit on all data; this fold model is what we plot so
+# both matrices are scored on the held-out demo fold, not on rows the model was fit on).
+X_demo_bal, y_demo_bal = balance(X.iloc[demo_tr], y.iloc[demo_tr])
+demo_balanced = RandomForestClassifier(**PARAMS).fit(X_demo_bal, y_demo_bal)
 
 # Registered model: Stratified GROUP k-fold cross-validation. Each fold stratifies by the rare
 # fraud label AND keeps every client in one fold, so no customer is ever in both the fit and the
@@ -392,8 +404,8 @@ print(metrics)
 # MAGIC   and detects little fraud.
 # MAGIC - The balanced model recovers true positives at the cost of more false positives.
 # MAGIC
-# MAGIC Both use the same original, imbalanced test set. The figure is logged to the
-# MAGIC `rf_balanced` MLflow run so it stays with the model version.
+# MAGIC Both are scored on the same held-out demo fold (rows neither demo model was fit on). The
+# MAGIC figure is logged to the `rf_balanced` MLflow run so it stays with the model version.
 
 # COMMAND ----------
 
@@ -403,10 +415,10 @@ from sklearn.metrics import ConfusionMatrixDisplay
 fig, axes = plt.subplots(1, 2, figsize=(11, 4))
 for ax, clf, title in (
     (axes[0], naive, "rf_imbalanced (naive)"),
-    (axes[1], model, "rf_balanced (registered)"),
+    (axes[1], demo_balanced, "rf_balanced (demo fold)"),
 ):
     ConfusionMatrixDisplay.from_estimator(
-        clf, X_test, y_test, display_labels=["legit", "fraud"], cmap="Blues", ax=ax, colorbar=False
+        clf, X_demo_va, y_demo_va, display_labels=["legit", "fraud"], cmap="Blues", ax=ax, colorbar=False
     )
     ax.set_title(title)
 fig.tight_layout()
