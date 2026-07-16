@@ -162,7 +162,7 @@ targets:
       # Production mode needs a fixed, non-user-scoped root_path so exactly one copy is
       # deployed and it is not tied to the deploying user. CI deploys and runs this target as
       # the cicd_service_principal.
-      root_path: /Workspace/mlops-workshop/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/databricks-mlops-workshop/.bundle/${bundle.name}/${bundle.target}
 
   prod:
     mode: production

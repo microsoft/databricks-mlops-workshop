@@ -67,20 +67,13 @@ client_feature_table = f"{catalog_name}.{ml_schema}.client_features"
 # Sensible defaults so the notebook is runnable interactively (outside the DAB job),
 # where the experiment/model widgets may be empty.
 current_user = spark.range(1).select(F.current_user()).first()[0]
-# Interactive fallback for the experiment: derive it from this notebook's repo folder so the
-# name tracks the repo automatically instead of hard-coding it. In the DAB job the bundle
-# always passes experiment_name (${resources.experiments.experiment.name}).
-experiment_name = dbutils.widgets.get("experiment_name")
-if not experiment_name:
-    from pathlib import PurePosixPath
-
-    _notebook_path = (
-        dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
-    )
-    # <repo>/<src|solution>/training/notebooks/training.py -> the <repo> folder name
-    _parents = PurePosixPath(_notebook_path).parents
-    _project = _parents[3].name if len(_parents) > 3 else "mlops-workshop"
-    experiment_name = f"/Users/{current_user}/{_project}"
+# Interactive fallback: outside the DAB job the experiment widget is empty, so log under the
+# user's home in an experiment named after the repo. In the job the bundle always passes
+# experiment_name (${resources.experiments.experiment.name}), so this only applies to ad-hoc runs.
+experiment_name = (
+    dbutils.widgets.get("experiment_name")
+    or f"/Users/{current_user}/databricks-mlops-workshop"
+)
 model_name = dbutils.widgets.get("model_name")
 # Accept either a bare name (prepend catalog + ml_schema) or an already-qualified 3-level name.
 uc_model_name = (
