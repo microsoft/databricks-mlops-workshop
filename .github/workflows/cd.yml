@@ -86,7 +86,7 @@ jobs:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: databricks/setup-cli@v0.9.0
       - name: Validate bundle
         run: databricks bundle validate -t dev
@@ -117,7 +117,7 @@ jobs:
       # would be ignored (staging's run_as would then fail to resolve).
       BUNDLE_VAR_cicd_service_principal: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: databricks/setup-cli@v0.9.0
       - name: Validate bundle
         run: databricks bundle validate -t staging
@@ -145,7 +145,7 @@ jobs:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: databricks/setup-cli@v0.9.0
       - name: Validate bundle
         run: databricks bundle validate -t prod
