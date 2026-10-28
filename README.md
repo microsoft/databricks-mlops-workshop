@@ -121,6 +121,25 @@ The promotion gate uses **ROC-AUC**. MLflow also tracks precision, recall, macro
 
 Develop in the Databricks UI or a local IDE, commit to Git, and promote through CI/CD. **Never edit prod directly.**
 
+This flow assumes [CI/CD is enabled](#cicd-promoting-the-bundle-across-environments); automatic deployments are disabled in the public repo.
+
+```mermaid
+flowchart LR
+    subgraph Develop["1. Develop (pick one)"]
+      UI[UI: Git folder<br/>edit + run notebooks on serverless]
+      IDE[Local IDE: VS Code + CLI<br/>edit solution/, regenerate src/]
+    end
+    UI -->|commit / sync| G[(Git repo)]
+    IDE -->|git push branch| G
+    G -->|2. open PR| PR[Pull request<br/>src-sync + configured checks]
+    PR -->|3. merge to dev| CICD[CI/CD pipeline]
+    CICD -->|bundle deploy -t dev| D[(Dev)]
+    D -->|promote dev to main| CICD
+    CICD -->|bundle deploy -t staging| S[(Staging)]
+    S -->|cut release| CICD
+    CICD -->|approval + bundle deploy -t prod| P[(Prod)]
+```
+
 ### 1. Develop: two ways to edit
 
 **a) In the Databricks UI (Git folder, no local install)**
