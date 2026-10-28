@@ -1,7 +1,7 @@
 # Exploration
 
-Optional exploratory data analysis. Read-only and carries no TODO gaps, so the generator copies it verbatim into `src/`. Not wired into a job; run it interactively to understand the data before the labs.
+Optional read-only EDA before the labs. Run interactively, not as a job. No TODO gaps; copied verbatim into `src/`.
 
 | File | Description |
 |---|---|
-| `notebooks/eda.py` | Quick read-only look at the gold `transactions_enriched` table: shape and schema, fraud class imbalance, numeric summaries, and how fraud varies by amount, hour of day and merchant category. |
+| [eda.py](notebooks/eda.py) | Explore gold `transactions_enriched`: shape, schema, class imbalance, numeric summaries, and fraud by amount, hour, and merchant category. |

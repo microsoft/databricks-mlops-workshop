@@ -4,9 +4,9 @@ Each stage has its notebook entrypoints in `<stage>/notebooks/`.
 
 | Folder | Description |
 |---|---|
-| `exploration/` | Optional read-only EDA to understand the data before the labs. |
-| `data_ingestion/` | Instructor-only setup: land raw files into Bronze and build Silver/Gold. |
-| `feature_engineering/` | Build the card/client entity feature tables and on-demand feature functions. |
-| `training/` | Train, track and register the fraud detection model. |
-| `deployment/` | Promote and serve the champion model (deployment job + endpoint) and run batch inference. |
-| `monitoring/` | Refresh the Lakehouse Monitors, process serving logs, and check for model drift that triggers retraining. |
+| [exploration/](exploration/) | Optional read-only EDA before the labs. |
+| [data_ingestion/](data_ingestion/) | Instructor-only raw-file ingestion into Bronze, then Silver/Gold. |
+| [feature_engineering/](feature_engineering/) | Build card/client entity tables and on-demand feature functions. |
+| [training/](training/) | Train, track, and register the fraud model. |
+| [deployment/](deployment/) | Promote and serve the champion via deployment job/endpoint; run batch inference. |
+| [monitoring/](monitoring/) | Refresh Lakehouse Monitors, process serving logs, and trigger retraining on drift. |
