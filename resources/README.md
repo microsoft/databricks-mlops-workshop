@@ -1,17 +1,15 @@
 # Resources
 
-Declarative Automation Bundle (DAB) definitions (formerly Databricks Asset Bundles);
-one file per job/resource. `databricks.yml` includes these; `databricks bundle deploy`
-reconciles them into the workspace.
+Declarative Automation Bundle (DAB, formerly Databricks Asset Bundle) definitions, one file per job/resource. [`databricks.yml`](../databricks.yml) selects the includes; `databricks bundle deploy` reconciles enabled resources into the workspace.
 
 | File | Description |
 |---|---|
-| `schemas-resource.yml` | The ML schema: shared `fraud_ml` on clean targets; a per-attendee `dev_<user>_fraud` sandbox on personal. |
-| `ml-artifacts-resource.yml` | The MLflow experiment for the fraud project. |
-| `data-ingestion-workflow.yml` | Instructor-only job: land raw files into Bronze, then build Silver. |
-| `feature-engineering-workflow.yml` | Build the card/client entity feature tables and on-demand feature functions. |
-| `model-training-workflow.yml` | Train and register the model (auto-triggers the connected deployment job). |
-| `deployment-job-workflow.yml` | MLflow 3 deployment job: evaluate → approve → deploy each new model version. |
-| `batch-inference-workflow.yml` | Score new data with the registered model and write predictions. |
-| `serving-log-processing-workflow.yml` | Unpack the serving endpoint's inference table for the online monitor. |
-| `monitoring-resource.yml` | Lakehouse Monitors (batch + online) and the metric-triggered retraining job. |
+| [schemas-resource.yml](schemas-resource.yml) | ML schema: shared `fraud_ml` on clean targets; `dev_<user>_fraud` on personal. |
+| [ml-artifacts-resource.yml](ml-artifacts-resource.yml) | Fraud project's MLflow experiment. |
+| [data-ingestion-workflow.yml](data-ingestion-workflow.yml) | Instructor-only ingestion: landing → Bronze → Silver → Gold. |
+| [feature-engineering-workflow.yml](feature-engineering-workflow.yml) | Card/client entity feature tables and on-demand feature functions. |
+| [model-training-workflow.yml](model-training-workflow.yml) | Train and register a model, triggering its connected deployment job. |
+| [deployment-job-workflow.yml](deployment-job-workflow.yml) | MLflow 3: evaluate → approve → deploy each new model version. |
+| [batch-inference-workflow.yml](batch-inference-workflow.yml) | Score new data with the registered model and write predictions. |
+| [serving-log-processing-workflow.yml](serving-log-processing-workflow.yml) | Unpack serving inference logs for the online monitor. |
+| [monitoring-resource.yml](monitoring-resource.yml) | Batch/online Lakehouse Monitors and metric-triggered retraining. |

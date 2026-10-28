@@ -2,4 +2,4 @@
 
 | File | Description |
 |---|---|
-| `notebooks/batch_inference.py` | Score a batch of transactions with the `@champion` model and append the results to the inference table. |
+| [batch_inference.py](notebooks/batch_inference.py) | Score transactions with `@champion` and append results to the inference table. |

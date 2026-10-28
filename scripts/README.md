@@ -4,4 +4,4 @@ Helper scripts run from a terminal (not part of the bundle).
 
 | File | Description |
 |---|---|
-| `generate_src.py` | Regenerate the gapped `src/` tree from the complete source in `solution/` by stripping solution blocks. |
+| [generate_src.py](generate_src.py) | Strip solution blocks from `solution/` to regenerate the gapped `src/` tree. |
