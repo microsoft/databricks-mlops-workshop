@@ -46,6 +46,19 @@ created when you deploy the bundle to a clean target.
 - Authenticated to the workspace. Use **Azure CLI auth** (`az login` against the correct
   tenant), or configure a CLI profile.
 
+### Optional: AI coding assistant skills
+
+Install the official [Databricks agent skills](https://learn.microsoft.com/en-us/azure/databricks/agent-skills/)
+globally for coding assistants such as GitHub Copilot:
+
+```powershell
+databricks aitools install --scope global
+```
+
+The installer detects supported assistants and provides Databricks guidance for tasks
+such as bundles, jobs, model training and serving. Skills are installed outside this
+repository and can be used across projects; no third-party skills are bundled here.
+
 ### Run it
 
 ```powershell
